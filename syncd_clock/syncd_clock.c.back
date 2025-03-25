@@ -50,6 +50,13 @@ void gpio_callback(uint gpio, uint32_t events) {
     lastHsyncInterruptTime = HsyncTime;
 }
 
+int64_t alarm_callback(alarm_id_t id, void *user_data) {
+    timer_flag = true;
+    TimerTime = time_us_64();
+    timeBetweenTimerInterrupts = TimerTime - lastTimerInterruptTime;
+    lastTimerInterruptTime = TimerTime;
+}
+
 int main()
 {
     // Set the system frequency to 133 MHz. vco_calc.py from the SDK tells us
@@ -141,6 +148,10 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
     #endif
     // For more pio examples see https://github.com/raspberrypi/pico-examples/tree/master/pio
 
+    // set up Timer fires off the callback after 2,000,000us
+    add_alarm_in_us((39), alarm_callback, NULL, false);
+    // For more examples of timer use see https://github.com/raspberrypi/pico-examples/tree/master/timer
+
     // set up gpio IRQ
     gpio_init(IRQ_PIN);
     gpio_set_dir(IRQ_PIN, GPIO_IN);
@@ -157,6 +168,20 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
                 printf("Time difference between Hsync and Timer interrupts: %llu microseconds\n", delta);
             }  // end if time
         }  // end while not hsync
+
+        if ( hsync_flag ) {
+            printf("Time between Hsync interrupts: %llu microseconds\n", timeBetweenHsyncInterrupts);
+            // figure out if clock is leading or lagging, and adjust in real time
+            delta = HsyncTime - TimerTime;
+            printf("HsyncrTime: %llu\n", HsyncTime);
+            // also need to reset alarm here, so timer can sync to it
+            hsync_flag = false;
+        }
+        if ( timer_flag ) {
+            printf("Time between Timer interrupts: %llu microseconds\n", timeBetweenTimerInterrupts);
+            printf("TimerTime: %llu\n", TimerTime);
+            timer_flag = false;
+        }
 
         sleep_ms(1000);
     }
