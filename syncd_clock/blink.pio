@@ -22,7 +22,8 @@ lp2:
 
 
 % c-sdk {
-// this is a raw helper function for use by the user which sets up the GPIO output, and configures the SM to output on a particular pin
+// this is a raw helper function for use by the user which sets up the GPIO output,
+// and configures the SM to output on a particular pin
 
 void blink_program_init(PIO pio, uint sm, uint offset, uint pin) {
    pio_gpio_init(pio, pin);

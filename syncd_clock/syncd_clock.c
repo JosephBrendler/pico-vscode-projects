@@ -10,6 +10,8 @@
 // definitions ---------------------------------------------------
 #define PLL_SYS_KHZ (133 * 1000)  // system clock defined as 133 MHz
 #define IRQ_PIN 15
+//#define BLINK_PIN 25
+#define BLINK_PIN 2
 
 // variables ----------------------------------------------------
 volatile uint64_t alarm_time = 0;
@@ -25,9 +27,13 @@ volatile uint64_t lastTimerInterruptTime        = 0;
 volatile uint64_t timeBetweenTimerInterrupts    = 0;
 volatile uint64_t TimerTime                     = 0;
 
-volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
+//volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
+volatile float div                              = 1.0;     // clock divider use to set clk_sys after clk_peri is tied to PLL
 
 long delta = 0;  // difference between hsync pulse and alarm, in us
+
+//uint blink_freq = 3;
+uint blink_freq = 20513 * KHZ;
 
 // functions ----------------------------------------------------
 
@@ -82,10 +88,11 @@ int main()
     puts("Thus we can print reliably with the UART.\n");
 
     // configure clocks
-// ---------------- sample freqs per div choice ----------------------
+/*/ ---------------- sample freqs per div choice ----------------------
 //for ( div = 1.0; div <= 10.0; div+=0.5) {
 //for ( div = 6.0; div <= 6.5; div+=0.01) {
-for ( div = 6.484; div <= 6.485; div+=0.0001) {
+// 0.00390625 = 1/256 - the smallest possible increment
+for ( div = 6.4; div <= 6.5; div+=0.00390625) {
     printf("Setting system clock divisor to %.5f\n", div);
         clock_configure(
             clk_sys,
@@ -101,12 +108,10 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
         printf("%u kHz\n", frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS));
 
         printf("System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-        printf("USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
-        printf("Peripheral Clock Frequency is %d Hz\n\n", clock_get_hz(clk_peri));
         // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
     }
 //------------------------------------------------------------------------*/
-/*
+
     // reconfigure clk_sys with divider (float div) set in variable declarations above
     printf("Setting system clock with divisor: %.5f\n", div);
     clock_configure(
@@ -116,7 +121,7 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
         PLL_SYS_KHZ,
         PLL_SYS_KHZ / div
     );
-*/
+
 
     printf("Measuring system clock with frequency counter: ");
     // Note that the numbering of frequency counter sources is not the
@@ -134,11 +139,7 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
     uint offset = pio_add_program(pio, &blink_program);
     printf("Loaded program at %d\n", offset);
 
-    #ifdef PICO_DEFAULT_LED_PIN    // GPIO 25 on pico/rp2040
-    blink_pin_forever(pio, 0, offset, PICO_DEFAULT_LED_PIN, 3);
-    #else
-    blink_pin_forever(pio, 0, offset, 6, 3);
-    #endif
+    blink_pin_forever(pio, 0, offset, BLINK_PIN, blink_freq);
     // For more pio examples see https://github.com/raspberrypi/pico-examples/tree/master/pio
 
     // set up gpio IRQ
@@ -157,7 +158,9 @@ for ( div = 6.484; div <= 6.485; div+=0.0001) {
                 printf("Time difference between Hsync and Timer interrupts: %llu microseconds\n", delta);
             }  // end if time
         }  // end while not hsync
-
+        if ( hsync_flag ) {
+            printf("Time between Hsync interrupts: %llu microseconds\n", timeBetweenHsyncInterrupts);
+        }
         sleep_ms(1000);
     }
 }
