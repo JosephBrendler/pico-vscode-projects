@@ -17,7 +17,7 @@ int main()
     stdio_init_all();
 
     // Timer example code - This example fires off the callback after 2000ms
-    add_alarm_in_us(0.4f, alarm_callback, NULL, false);
+    add_alarm_in_us(1, alarm_callback, NULL, false);
     // For more examples of timer use see https://github.com/raspberrypi/pico-examples/tree/master/timer
 
     while (true) {
