@@ -41,7 +41,7 @@ pico_set_program_name(HsyncInterrupt "HsyncInterrupt")
 pico_set_program_version(HsyncInterrupt "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(HsyncInterrupt 0)
+pico_enable_stdio_uart(HsyncInterrupt 1)
 pico_enable_stdio_usb(HsyncInterrupt 0)
 
 # Add the standard library to the build
@@ -55,7 +55,7 @@ target_include_directories(HsyncInterrupt PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(HsyncInterrupt 
-        hardware_timer
+        hardware_gpio
         )
 
 pico_add_extra_outputs(HsyncInterrupt)
