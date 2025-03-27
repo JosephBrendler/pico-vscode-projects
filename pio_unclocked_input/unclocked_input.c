@@ -55,7 +55,7 @@ int main() {
     // Configure the SPI before PIO to avoid driving any glitches into the
     // state machine.
     spi_init(spi0, 1000 * 1000);
-    uint actual_freq_hz = spi_set_baudrate(spi0, clock_get_hz(clk_sys) / 1);
+    uint actual_freq_hz = spi_set_baudrate(spi0, clock_get_hz(clk_sys) / 6);
     printf("SPI running at %u Hz\n", actual_freq_hz);
     gpio_set_function(SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(SPI_SCK_PIN, GPIO_FUNC_SPI);
@@ -69,7 +69,7 @@ int main() {
 
     // Make up some random data to send.
     static uint8_t txbuf[BUF_SIZE];
-    puts("Data to transmit/store:");
+    puts("Data to transmit:");
     for (int i = 0; i < BUF_SIZE; ++i) {
         txbuf[i] = rand() >> 16;
         printf("%02x\n", txbuf[i]);
@@ -88,13 +88,13 @@ int main() {
         if (hsync_flag) {
             hsync_flag = false;
             // Hsync interrupt fires on rising edge, so wait out sync pulse and front porch time
-            // then read 800 pixels (oversampling) and wait for next Hsync
+            // then read 800 pixels (oversampli ng) and wait for next Hsync
             sleep_us(7);
-            for (int pixel=0; pixel<(800*4); pixel++) {
-                puts("Reading back from RX FIFO:");
+            for (int col=0; col<(80*4); col++) {
+            //    puts("Reading back from RX FIFO:");
                 for (int i = 0; i < BUF_SIZE; ++i) {
                     uint8_t rxdata = pio_sm_get_blocking(pio, sm);
-                    printf("%02x %s\n", rxdata, rxdata == txbuf[i] ? "OK" : "FAIL");
+            //        printf("%02x %s\n", rxdata, rxdata == txbuf[i] ? "OK" : "FAIL");
                 }  // end for buffered data
             }  // end for pixel scan line
             while ( ! hsync_flag ) {
