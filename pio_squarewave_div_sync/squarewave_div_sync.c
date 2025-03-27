@@ -32,7 +32,9 @@
 //#define CLOCK_DIVISOR 64   // empirically, 2.1us period
 //#define CLOCK_DIVISOR 16   // empirically, 0.5us period (2Mhz)
 //#define CLOCK_DIVISOR 4   // empirically, 0.1us period (10Mhz)
-#define CLOCK_DIVISOR 16.5f   // empirically, 0.1us period (10Mhz)
+//#define CLOCK_DIVISOR 16.5f   // empirically, 0.51us period (1.96Mhz)
+//#define CLOCK_DIVISOR 2.5f   // empirically, 0.0645us period (15.5Mhz)
+#define CLOCK_DIVISOR 1.0f   // empirically, 0.0325us period (31.5Mhz)
 
 // This example enables each state machines in turn then synchronizes the divisors
 // with a call to pio_clkdiv_restart_sm_multi_mask
