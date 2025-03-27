@@ -1,43 +1,49 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
-#include "hardware/timer.h"
 #include "hardware/clocks.h"
-#include "hardware/uart.h"
+#include "hardware/irq.h"
+#include "hardware/xosc.h"
+#include "hardware/pll.h"
+#include "hardware/regs/xosc.h"
+#include "hardware/structs/xosc.h"
+#include "hardware/structs/pll.h"
+#include "hardware/structs/clocks.h"
 
 #include "blink.pio.h"
 
 // definitions ---------------------------------------------------
-#define PLL_SYS_KHZ (133 * 1000)  // system clock defined as 133 MHz
+#define PLL_SYS_KHZ (133 * 1000) // system clock defined as 133 MHz
 #define IRQ_PIN 15
-//#define BLINK_PIN 25
-#define BLINK_PIN 2
+#define BLINK_PIN 25
+#define XOSC_COUNTER 5   // 133 MHz / 5 = 26.6 Mhz
+
+//#define XOSC_IRQ_IRQ_NR 17   // 17 is clock IRQ
 
 // variables ----------------------------------------------------
-volatile uint64_t alarm_time = 0;
+volatile float div = 1.0; // clock divider use to set clk_sys after clk_peri is tied to PLL
 
-volatile bool timer_flag                        = false;
-volatile bool hsync_flag                        = false;
+volatile bool hsync_flag = false;
 
-volatile uint64_t lastHsyncInterruptTime        = 0;
-volatile uint64_t timeBetweenHsyncInterrupts    = 0;
-volatile uint64_t HsyncTime                     = 0;
+volatile uint64_t lastHsyncInterruptTime = 0;
+volatile uint64_t timeBetweenHsyncInterrupts = 0;
+volatile uint64_t HsyncTime = 0;
+volatile uint64_t HsyncCount = 0;
 
-volatile uint64_t lastTimerInterruptTime        = 0;
-volatile uint64_t timeBetweenTimerInterrupts    = 0;
-volatile uint64_t TimerTime                     = 0;
+volatile bool xosc_flag = false;
 
-//volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
-volatile float div                              = 1.0;     // clock divider use to set clk_sys after clk_peri is tied to PLL
+volatile uint64_t lastXoscInterruptTime = 0;
+volatile uint64_t timeBetweenXoscInterrupts = 0;
+volatile uint64_t XoscTime = 0;
+volatile uint64_t XoscCount = 0;// volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
 
-long delta = 0;  // difference between hsync pulse and alarm, in us
-
-//uint blink_freq = 3;
-uint blink_freq = 20513 * KHZ;
+// uint blink_freq = 3;
+uint blink_freq = 4;
 
 // functions ----------------------------------------------------
 
-void blink_pin_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
+void blink_pin_forever(PIO pio, uint sm, uint offset, uint pin, uint freq)
+{
     blink_program_init(pio, sm, offset, pin);
     pio_sm_set_enabled(pio, sm, true);
 
@@ -49,11 +55,65 @@ void blink_pin_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
     pio->txf[sm] = ((133 * MHZ) / (2 * freq)) - 3;
 }
 
-void gpio_callback(uint gpio, uint32_t events) {
-    hsync_flag = true;
+void gpio_callback(uint gpio, uint32_t events)
+{
     HsyncTime = time_us_64();
     timeBetweenHsyncInterrupts = HsyncTime - lastHsyncInterruptTime;
     lastHsyncInterruptTime = HsyncTime;
+    hsync_flag = true;
+    HsyncCount++;
+}
+
+void set_xosc_counter(uint32_t count) {
+    // Disable the XOSC during configuration
+    xosc_hw->ctrl &= ~XOSC_CTRL_ENABLE_BITS;
+
+    // Set the desired counter value
+    xosc_hw->startup = count;
+
+    //Re-enable the XOSC
+    xosc_hw->ctrl |= XOSC_CTRL_ENABLE_BITS;
+
+    // Wait for XOSC to stabilize (optional, but recommended)
+    while (!(xosc_hw->status & XOSC_STATUS_STABLE_BITS));
+}
+
+// Interrupt handler for XOSC counter
+void xosc_interrupt_handler() {
+    // Clear the interrupt flag
+//    xosc_clear_interrupt();
+    // set software flag instead
+    XoscTime = time_us_64();
+    timeBetweenXoscInterrupts = XoscTime - lastXoscInterruptTime;
+    lastXoscInterruptTime = XoscTime;
+    xosc_flag = true;
+    XoscCount++;
+}
+
+void measure_freqs(void) {
+    uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+    uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
+    uint f_rosc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC);
+    uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+    uint f_clk_peri = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_PERI);
+    uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
+    uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+#ifdef CLOCKS_FC0_SRC_VALUE_CLK_RTC
+    uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
+#endif
+
+    printf("pll_sys  = %dkHz\n", f_pll_sys);
+    printf("pll_usb  = %dkHz\n", f_pll_usb);
+    printf("rosc     = %dkHz\n", f_rosc);
+    printf("clk_sys  = %dkHz\n", f_clk_sys);
+    printf("clk_peri = %dkHz\n", f_clk_peri);
+    printf("clk_usb  = %dkHz\n", f_clk_usb);
+    printf("clk_adc  = %dkHz\n", f_clk_adc);
+#ifdef CLOCKS_FC0_SRC_VALUE_CLK_RTC
+    printf("clk_rtc  = %dkHz\n", f_clk_rtc);
+#endif
+
+    // Can't measure clk_ref / xosc as it is the ref
 }
 
 int main()
@@ -88,29 +148,27 @@ int main()
     puts("Thus we can print reliably with the UART.\n");
 
     // configure clocks
-/*/ ---------------- sample freqs per div choice ----------------------
-//for ( div = 1.0; div <= 10.0; div+=0.5) {
-//for ( div = 6.0; div <= 6.5; div+=0.01) {
-// 0.00390625 = 1/256 - the smallest possible increment
-for ( div = 6.4; div <= 6.5; div+=0.00390625) {
-    printf("Setting system clock divisor to %.5f\n", div);
-        clock_configure(
-            clk_sys,
-            CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
-            CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
-            PLL_SYS_KHZ,
-            PLL_SYS_KHZ / div
-        );
-        printf("Measuring system clock with frequency counter:");
-        // Note that the numbering of frequency counter sources is not the
-        // same as the numbering of clock slice register blocks. (If we passed
-        // the clk_sys enum here we would actually end up measuring XOSC.)
-        printf("%u kHz\n", frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS));
-
-        printf("System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-        // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
-    }
-//------------------------------------------------------------------------*/
+    /*/ ---------------- sample freqs per div choice ----------------------
+    //for ( div = 1.0; div <= 10.0; div+=0.5) {
+    //for ( div = 6.0; div <= 6.5; div+=0.01) {
+    // 0.00390625 = 1/256 - the smallest possible increment
+    for ( div = 6.4; div <= 6.5; div+=0.00390625) {
+        printf("Setting system clock divisor to %.5f\n", div);
+            clock_configure(
+                clk_sys,
+                CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
+                CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+                PLL_SYS_KHZ,
+                PLL_SYS_KHZ / div
+            );
+            printf("Measuring system clock with frequency counter:");
+            // Note that the numbering of frequency counter sources is not the
+            // same as the numbering of clock slice register blocks. (If we passed
+            // the clk_sys enum here we would actually end up measuring XOSC.)
+            printf("%u kHz\n", frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS));
+            // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
+        }
+    //------------------------------------------------------------------------*/
 
     // reconfigure clk_sys with divider (float div) set in variable declarations above
     printf("Setting system clock with divisor: %.5f\n", div);
@@ -119,20 +177,17 @@ for ( div = 6.4; div <= 6.5; div+=0.00390625) {
         CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
         CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
         PLL_SYS_KHZ,
-        PLL_SYS_KHZ / div
-    );
-
+        PLL_SYS_KHZ / div);
 
     printf("Measuring system clock with frequency counter: ");
     // Note that the numbering of frequency counter sources is not the
     // same as the numbering of clock slice register blocks. (If we passed
     // the clk_sys enum here we would actually end up measuring XOSC.)
     printf("%u kHz\n", frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS));
-
-    printf("System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-    printf("USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
-    printf("Peripheral Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
     // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
+
+    // use function above to measure all freqs
+    measure_freqs();
 
     // set up pio for blinking
     PIO pio = pio0;
@@ -148,19 +203,44 @@ for ( div = 6.4; div <= 6.5; div+=0.00390625) {
     gpio_pull_down(IRQ_PIN);
     gpio_set_irq_enabled_with_callback(IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
 
+    // Enable the XOSC counter interrupt
+    
+//    irq_set_exclusive_handler(XOSC_IRQ_IRQ_NR, xosc_interrupt_handler); // Set the interrupt handler
+//    irq_set_enabled(XOSC_IRQ_IRQ_NR, true); // Enable the interrupt in the NVIC
+    irq_set_exclusive_handler(XOSC_IRQ_IRQn, xosc_interrupt_handler); // Set the interrupt handler
+    irq_set_enabled(XOSC_IRQ_IRQn, true); // Enable the interrupt in the NVIC
+
+    // Configure the XOSC counter (example: interrupt every second)
+ //   xosc_setup(); // Initialize XOSC
+ //   xosc_enable_counter_interrupt(XOSC_MHZ); // Set interrupt at 1 MHz intervals, adjust as needed
+
+    // Example: Set the XOSC counter to 1000
+    set_xosc_counter(XOSC_COUNTER);
+    printf("set xosc_counter to %d\n", XOSC_COUNTER);
+
+    // setup complete - run program
     // for now, run for 20 seconds
-//    while (true) {
     uint count = 0;
-    while ( count++ < 20) {
-        printf("Hello, world!\n");
-        while ( ! hsync_flag ) {
-            if ( time_us_64() % 1000000 == 0 ) {   // once a second, do this
-                printf("Time difference between Hsync and Timer interrupts: %llu microseconds\n", delta);
-            }  // end if time
-        }  // end while not hsync
-        if ( hsync_flag ) {
-            printf("Time between Hsync interrupts: %llu microseconds\n", timeBetweenHsyncInterrupts);
-        }
-        sleep_ms(1000);
-    }
-}
+    while (count < 10)
+    {
+        if (time_us_64() % 1000000 == 0)
+        { // once a second, do this
+            if (hsync_flag)
+            {
+                printf("(%d) Hello, %dth hsync-interrupted world!\n", count++, HsyncCount);
+                printf("Time difference between Hsync interrupts: %llu microseconds\n", timeBetweenHsyncInterrupts);
+                hsync_flag = false;
+            } else {
+                printf("(%d) Hello, un-hsync-interrupted world!\n", count);
+            }
+            if (xosc_flag)
+            {
+                printf("(%d) Hello, %dth xosc-interrupted world!\n", count++, XoscCount);
+                printf("Time difference between Hsync interrupts: %llu microseconds\n", timeBetweenXoscInterrupts);
+                xosc_flag = false;
+            } else {
+                printf("(%d) Hello, un-xosc-interrupted world!\n", count);
+            }
+        } // end if time
+    } // end while count++ < 10
+} // end main

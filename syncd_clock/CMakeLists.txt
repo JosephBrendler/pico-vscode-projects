@@ -59,8 +59,12 @@ target_include_directories(syncd_clock PRIVATE
 # Add any user requested libraries
 target_link_libraries(syncd_clock 
         hardware_pio
+        hardware_xosc
+        hardware_regs
+        hardware_structs
         hardware_timer
         hardware_clocks
+        hardware_irq
         )
 
 pico_add_extra_outputs(syncd_clock)
