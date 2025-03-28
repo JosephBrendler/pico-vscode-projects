@@ -3,13 +3,6 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
-#include "hardware/rosc.h"
-#include "hardware/pll.h"
-#include "hardware/timer.h"
-#include "hardware/regs/rosc.h"
-#include "hardware/structs/rosc.h"
-#include "hardware/structs/pll.h"
-#include "hardware/structs/clocks.h"
 
 #include "blink.pio.h"
 
@@ -17,9 +10,6 @@
 #define PLL_SYS_KHZ (133 * 1000) // system clock defined as 133 MHz
 #define IRQ_PIN 15
 #define BLINK_PIN 25
-#define Rosc_COUNTER 5   // 133 MHz / 5 = 26.6 Mhz
-
-//#define Rosc_IRQ_IRQ_NR 17   // 17 is clock IRQ
 
 // variables ----------------------------------------------------
 volatile float div = 1.0; // clock divider use to set clk_sys after clk_peri is tied to PLL
@@ -30,13 +20,6 @@ volatile uint64_t lastHsyncInterruptTime = 0;
 volatile uint64_t timeBetweenHsyncInterrupts = 0;
 volatile uint64_t HsyncTime = 0;
 volatile uint64_t HsyncCount = 0;
-
-volatile bool Rosc_flag = false;
-
-volatile uint64_t lastRoscInterruptTime = 0;
-volatile uint64_t timeBetweenRoscInterrupts = 0;
-volatile uint64_t RoscTime = 0;
-volatile uint64_t RoscCount = 0;// volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
 
 // uint blink_freq = 3;
 uint blink_freq = 4;
@@ -63,32 +46,6 @@ void gpio_callback(uint gpio, uint32_t events)
     lastHsyncInterruptTime = HsyncTime;
     hsync_flag = true;
     HsyncCount++;
-}
-
-void set_Rosc_counter(uint32_t count) {
-    // Disable the Rosc during configuration
-    Rosc_hw->ctrl &= ~Rosc_CTRL_ENABLE_BITS;
-
-    // Set the desired counter value
-    Rosc_hw->startup = count;
-
-    //Re-enable the Rosc
-    Rosc_hw->ctrl |= Rosc_CTRL_ENABLE_BITS;
-
-    // Wait for Rosc to stabilize (optional, but recommended)
-    while (!(Rosc_hw->status & Rosc_STATUS_STABLE_BITS));
-}
-
-// Interrupt handler for Rosc counter
-void Rosc_interrupt_handler() {
-    // Clear the interrupt flag
-//    Rosc_clear_interrupt();
-    // set software flag instead
-    RoscTime = time_us_64();
-    timeBetweenRoscInterrupts = RoscTime - lastRoscInterruptTime;
-    lastRoscInterruptTime = RoscTime;
-    Rosc_flag = true;
-    RoscCount++;
 }
 
 void measure_freqs(void) {
@@ -148,30 +105,7 @@ int main()
     puts("We can vary the system clock divisor (and thus sys_clk) w/o affecting peri_clk");
     puts("Thus we can print reliably with the UART.\n");
 
-    // configure clocks
-    /*/ ---------------- sample freqs per div choice ----------------------
-    //for ( div = 1.0; div <= 10.0; div+=0.5) {
-    //for ( div = 6.0; div <= 6.5; div+=0.01) {
-    // 0.00390625 = 1/256 - the smallest possible increment
-    for ( div = 6.4; div <= 6.5; div+=0.00390625) {
-        printf("Setting system clock divisor to %.5f\n", div);
-            clock_configure(
-                clk_sys,
-                CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
-                CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
-                PLL_SYS_KHZ,
-                PLL_SYS_KHZ / div
-            );
-            printf("Measuring system clock with frequency counter:");
-            // Note that the numbering of frequency counter sources is not the
-            // same as the numbering of clock slice register blocks. (If we passed
-            // the clk_sys enum here we would actually end up measuring XOSC.)
-            printf("%u kHz\n", frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS));
-            // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
-        }
-    //------------------------------------------------------------------------*/
-
-    // reconfigure clk_sys with divider (float div) set in variable declarations above
+     // reconfigure clk_sys with divider (float div) set in variable declarations above
     printf("Setting system clock with divisor: %.5f\n", div);
     clock_configure(
         clk_sys,
@@ -204,20 +138,6 @@ int main()
     gpio_pull_down(IRQ_PIN);
     gpio_set_irq_enabled_with_callback(IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
 
-    // Enable the Rosc counter interrupt
-    irq_set_exclusive_handler(ROSC_IRQ_IRQ_NR, rosc_interrupt_handler); // Set the interrupt handler
-    irq_set_enabled(ROSC_IRQ_IRQ_NR, true); // Enable the interrupt in the NVIC
-//    irq_set_exclusive_handler(ROSC_IRQ_IRQn, rosc_interrupt_handler); // Set the interrupt handler
-//    irq_set_enabled(rosc_IRQ_IRQn, true); // Enable the interrupt in the NVIC
-
-    // Configure the rosc counter (example: interrupt every second)
- //   rosc_setup(); // Initialize rosc
- //   rosc_enable_counter_interrupt(ROSC_MHZ); // Set interrupt at 1 MHz intervals, adjust as needed
-
-    // Example: Set the Rosc counter to 1000
-    set_Rosc_counter(ROSC_COUNTER);
-    printf("set rosc_counter to %d\n", ROSC_COUNTER);
-
     // setup complete - run program
     // for now, run for 20 seconds
     uint count = 0;
@@ -232,14 +152,6 @@ int main()
                 hsync_flag = false;
             } else {
                 printf("(%d) Hello, un-hsync-interrupted world!\n", count);
-            }
-            if (rosc_flag)
-            {
-                printf("(%d) Hello, %dth rosc-interrupted world!\n", count++, RoscCount);
-                printf("Time difference between Hsync interrupts: %llu microseconds\n", timeBetweenRoscInterrupts);
-                rosc_flag = false;
-            } else {
-                printf("(%d) Hello, un-rosc-interrupted world!\n", count);
             }
         } // end if time
     } // end while count++ < 10
