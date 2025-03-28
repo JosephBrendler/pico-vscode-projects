@@ -3,10 +3,11 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
-#include "hardware/xosc.h"
+#include "hardware/rosc.h"
 #include "hardware/pll.h"
-#include "hardware/regs/xosc.h"
-#include "hardware/structs/xosc.h"
+#include "hardware/timer.h"
+#include "hardware/regs/rosc.h"
+#include "hardware/structs/rosc.h"
 #include "hardware/structs/pll.h"
 #include "hardware/structs/clocks.h"
 
@@ -16,9 +17,9 @@
 #define PLL_SYS_KHZ (133 * 1000) // system clock defined as 133 MHz
 #define IRQ_PIN 15
 #define BLINK_PIN 25
-#define XOSC_COUNTER 5   // 133 MHz / 5 = 26.6 Mhz
+#define Rosc_COUNTER 5   // 133 MHz / 5 = 26.6 Mhz
 
-//#define XOSC_IRQ_IRQ_NR 17   // 17 is clock IRQ
+//#define Rosc_IRQ_IRQ_NR 17   // 17 is clock IRQ
 
 // variables ----------------------------------------------------
 volatile float div = 1.0; // clock divider use to set clk_sys after clk_peri is tied to PLL
@@ -30,12 +31,12 @@ volatile uint64_t timeBetweenHsyncInterrupts = 0;
 volatile uint64_t HsyncTime = 0;
 volatile uint64_t HsyncCount = 0;
 
-volatile bool xosc_flag = false;
+volatile bool Rosc_flag = false;
 
-volatile uint64_t lastXoscInterruptTime = 0;
-volatile uint64_t timeBetweenXoscInterrupts = 0;
-volatile uint64_t XoscTime = 0;
-volatile uint64_t XoscCount = 0;// volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
+volatile uint64_t lastRoscInterruptTime = 0;
+volatile uint64_t timeBetweenRoscInterrupts = 0;
+volatile uint64_t RoscTime = 0;
+volatile uint64_t RoscCount = 0;// volatile float div                              = 6.5;     // clock divider use to set clk_sys after clk_peri is tied to PLL
 
 // uint blink_freq = 3;
 uint blink_freq = 4;
@@ -64,30 +65,30 @@ void gpio_callback(uint gpio, uint32_t events)
     HsyncCount++;
 }
 
-void set_xosc_counter(uint32_t count) {
-    // Disable the XOSC during configuration
-    xosc_hw->ctrl &= ~XOSC_CTRL_ENABLE_BITS;
+void set_Rosc_counter(uint32_t count) {
+    // Disable the Rosc during configuration
+    Rosc_hw->ctrl &= ~Rosc_CTRL_ENABLE_BITS;
 
     // Set the desired counter value
-    xosc_hw->startup = count;
+    Rosc_hw->startup = count;
 
-    //Re-enable the XOSC
-    xosc_hw->ctrl |= XOSC_CTRL_ENABLE_BITS;
+    //Re-enable the Rosc
+    Rosc_hw->ctrl |= Rosc_CTRL_ENABLE_BITS;
 
-    // Wait for XOSC to stabilize (optional, but recommended)
-    while (!(xosc_hw->status & XOSC_STATUS_STABLE_BITS));
+    // Wait for Rosc to stabilize (optional, but recommended)
+    while (!(Rosc_hw->status & Rosc_STATUS_STABLE_BITS));
 }
 
-// Interrupt handler for XOSC counter
-void xosc_interrupt_handler() {
+// Interrupt handler for Rosc counter
+void Rosc_interrupt_handler() {
     // Clear the interrupt flag
-//    xosc_clear_interrupt();
+//    Rosc_clear_interrupt();
     // set software flag instead
-    XoscTime = time_us_64();
-    timeBetweenXoscInterrupts = XoscTime - lastXoscInterruptTime;
-    lastXoscInterruptTime = XoscTime;
-    xosc_flag = true;
-    XoscCount++;
+    RoscTime = time_us_64();
+    timeBetweenRoscInterrupts = RoscTime - lastRoscInterruptTime;
+    lastRoscInterruptTime = RoscTime;
+    Rosc_flag = true;
+    RoscCount++;
 }
 
 void measure_freqs(void) {
@@ -203,20 +204,19 @@ int main()
     gpio_pull_down(IRQ_PIN);
     gpio_set_irq_enabled_with_callback(IRQ_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
 
-    // Enable the XOSC counter interrupt
-    
-//    irq_set_exclusive_handler(XOSC_IRQ_IRQ_NR, xosc_interrupt_handler); // Set the interrupt handler
-//    irq_set_enabled(XOSC_IRQ_IRQ_NR, true); // Enable the interrupt in the NVIC
-    irq_set_exclusive_handler(XOSC_IRQ_IRQn, xosc_interrupt_handler); // Set the interrupt handler
-    irq_set_enabled(XOSC_IRQ_IRQn, true); // Enable the interrupt in the NVIC
+    // Enable the Rosc counter interrupt
+    irq_set_exclusive_handler(ROSC_IRQ_IRQ_NR, rosc_interrupt_handler); // Set the interrupt handler
+    irq_set_enabled(ROSC_IRQ_IRQ_NR, true); // Enable the interrupt in the NVIC
+//    irq_set_exclusive_handler(ROSC_IRQ_IRQn, rosc_interrupt_handler); // Set the interrupt handler
+//    irq_set_enabled(rosc_IRQ_IRQn, true); // Enable the interrupt in the NVIC
 
-    // Configure the XOSC counter (example: interrupt every second)
- //   xosc_setup(); // Initialize XOSC
- //   xosc_enable_counter_interrupt(XOSC_MHZ); // Set interrupt at 1 MHz intervals, adjust as needed
+    // Configure the rosc counter (example: interrupt every second)
+ //   rosc_setup(); // Initialize rosc
+ //   rosc_enable_counter_interrupt(ROSC_MHZ); // Set interrupt at 1 MHz intervals, adjust as needed
 
-    // Example: Set the XOSC counter to 1000
-    set_xosc_counter(XOSC_COUNTER);
-    printf("set xosc_counter to %d\n", XOSC_COUNTER);
+    // Example: Set the Rosc counter to 1000
+    set_Rosc_counter(ROSC_COUNTER);
+    printf("set rosc_counter to %d\n", ROSC_COUNTER);
 
     // setup complete - run program
     // for now, run for 20 seconds
@@ -233,13 +233,13 @@ int main()
             } else {
                 printf("(%d) Hello, un-hsync-interrupted world!\n", count);
             }
-            if (xosc_flag)
+            if (rosc_flag)
             {
-                printf("(%d) Hello, %dth xosc-interrupted world!\n", count++, XoscCount);
-                printf("Time difference between Hsync interrupts: %llu microseconds\n", timeBetweenXoscInterrupts);
-                xosc_flag = false;
+                printf("(%d) Hello, %dth rosc-interrupted world!\n", count++, RoscCount);
+                printf("Time difference between Hsync interrupts: %llu microseconds\n", timeBetweenRoscInterrupts);
+                rosc_flag = false;
             } else {
-                printf("(%d) Hello, un-xosc-interrupted world!\n", count);
+                printf("(%d) Hello, un-rosc-interrupted world!\n", count);
             }
         } // end if time
     } // end while count++ < 10
