@@ -1,0 +1,56 @@
+/*
+ This is IRQ_demo_19A.  This will blink the LED on and off once and then 
+ for interrupt 0 to be cleared by a handler; Life With David Ep 19 Demo A
+*/
+.program pioIRQ
+
+
+// turn on the LED and delay, taking 1000 cycles
+start:
+    set pins, 1
+	set x,   31     [6]
+delay_high:
+	nop				[29]
+	jmp x-- delay_high
+// turn off the LED and delay, taking 1000 cycles
+    set pins, 0
+	set x,   31     [6]
+delay_low:	
+	nop				[29]
+	jmp x-- delay_low	
+//  jmp start
+//set interrupt and stall
+irq_stall:
+	nop              [29]
+	irq wait 3
+//	push block
+    jmp start
+
+
+
+% c-sdk {
+#include "hardware/clocks.h"
+static inline void pioIRQ_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+    pio_sm_config c = pioIRQ_program_get_default_config(offset);
+
+    // Map the state machine's SET pin group to one pin, namely the `pin`
+    // parameter to this function.
+    sm_config_set_set_pins(&c, pin, 1);
+	
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+	
+    // Set the pin direction to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+	
+	// set the state machine clock rate
+	float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+	sm_config_set_clkdiv(&c, div);
+	
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+	
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
