@@ -15,8 +15,8 @@ PIO Demo 19A - Demonstrating ID and clearing of IRQ 0 through 4 on one state mac
 #include "PioInterrupt_demo.pio.h"
 
 // if using sm IRQs 4-7, they cannot generate NVIC IRQs to cpu, so we must poll instead of use isr/callback
-// #define IRQ_CALLBACK true
-#define IRQ_CALLBACK false
+#define IRQ_CALLBACK true
+//#define IRQ_CALLBACK false
 
 static PIO PIO_O;    // pio object
 static uint SM;      // pio state machine index
