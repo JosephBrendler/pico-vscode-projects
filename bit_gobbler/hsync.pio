@@ -1,0 +1,27 @@
+.program hsync
+
+.wrap_target
+
+    wait pin 0
+    wait pin 1
+    irq 0
+
+.wrap
+
+
+% c-sdk {
+// this is a raw helper function for use by the user which sets up the GPIO output, and configures
+// the SM to read input on a particular pin. syntax of functions used:
+//     int pio_sm_set_consecutive_pindirs(PIO pio, uint sm, uint pins_base, uint pin_count, bool is_out)
+//     static inline void sm_config_set_set_pins(pio_sm_config *c, uint set_base, uint set_count)
+
+void hsync_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_gpio_init(pio, pin);
+   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);  // set pin to input  
+   pio_sm_config c = hsync_program_get_default_config(offset);
+//   sm_config_set_set_pins(&c, pin, 1);   // set just one pin at pinbase (not needed for input)
+    sm_config_set_in_pins(&c, pin);                 // set pin to input 
+    pio_set_irq0_source_enabled(pio, pin, true);    // enable irq on pin
+   pio_sm_init(pio, sm, offset, &c);
+}
+%}

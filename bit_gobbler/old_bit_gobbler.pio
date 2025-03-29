@@ -1,0 +1,55 @@
+.program bit_gobbler
+    pull block          ; get value
+.wrap_target
+    mov y, osr          ; copy the value representing number of character-columns
+                        ; (80). must be done this way since can't write > 31
+                        ; to a reg in asm
+frontporch:
+    nop [15]           ; pixel-clock width of front porch minus cycle to mov x (adjust if needed)
+
+active:                 ; read 80 columns (of 8 or 32 bits? see auto-push threshold)
+    set x 8             ; 8 pixels in char width (based on 80 * 8 = 640 width)
+
+colchar:                ; read 8 pixel video bits in this char
+    in pins, 1            ; (use y?) read video bit value into input shift register
+    jmp x-- colchar
+    
+    jmp y-- active      ; start reading next of 80 columns
+
+backporch:
+    wait irq 0          ; wait for next rising edge of active-low Hsync pulse (next line)
+
+.wrap
+                        
+; (need s separate sm for intensity bit, if used)
+
+
+% c-sdk {
+static inline void bit_gobbler_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = big_gobbler_get_default_config(offset);
+
+    // Set the IN base pin to the provided `pin` parameter. This is the video pin
+    // and the next pin is the intensity pin
+    sm_config_set_in_pins(&c, pin);
+    // Set the pin directions to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 2, false);
+    // Connect these GPIOs to this PIO block
+    pio_gpio_init(pio, pin);
+    pio_gpio_init(pio, pin + 1);
+
+    // Shifting to left matches the customary MSB-first ordering of SPI.
+    sm_config_set_in_shift(
+        &c,
+        false, // Shift-to-right = false (i.e. shift to left)
+        true,  // Autopush enabled
+        8      // Autopush threshold = 8
+    );
+
+    // We only receive, so disable the TX FIFO to make the RX FIFO deeper.
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    // Load our configuration, and start the program from the beginning
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
