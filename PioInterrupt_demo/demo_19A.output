@@ -1,4 +1,4 @@
-//------- with pio program line 25 set to wait for interrupt 3 **
+//------- with pio program line 25 set to wait for interrupt 3 (2^3 = 8)  **
 Welcome to minicom 2.9                                                                             
                                                                                                    
 Welcome to minicom 2.9                                                                             
@@ -14,7 +14,7 @@ starting test for pionum: 0                           +----------------------+
 assigned NVIC PIO_IRQ (0/1): 7                                                                     
 assigned offset: 21                                                                                
 assigned BLINK_LED_PIN: 25                                                                         
-assigned SM_CLK_FREQ: 2000.0000                                                                    
+assigned SM_CLK_FREQ: 2000.0000            <=== 2,000                                              
 completed pioIRQ_program_init                                                                      
 completed pio_set_irq0_source_mask_enabled with mask = dec: 3840 | hex: f00 | binary: 111100000000
 done test for pionum: 0                                                                            
@@ -28,7 +28,63 @@ PIO: 0, SM: 0, PIO_IRQ_num: 7
 .....[IRQ] 8 - IRQ3 - Before clearing [INTR]: 8f0 [IRQ]: 8; After clearing [INTR]: f0 [IRQ]: 0 
 .....[IRQ] 8 - IRQ3 - Before clearing [INTR]: 8f0 [IRQ]: 8; After clearing [INTR]: f0 [IRQ]: 0 
 
-//---------- change .pio file line 25 to irq wait 0 ---- new output below
+//---------- change .pio file line 25 to irq wait 2 (2^2 = 4)---- new output below
+Welcome to minicom 2.9                                                                             
+                                                                                                   
+OPTIONS: I18n                                                                                      
+Compiled on Mar  9 2025, 12:21:15.                                                                 
+Port /dev/ttyS4, 14:36:00                                                                          
+                                                                                                   
+Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000             <== 5,000                                            
+completed pioIRQ_program_init                                                                      
+completed pio_set_irq0_source_mask_enabled with mask = dec: 3840 | hex: f00 | binary: 111100000000 
+done test for pionum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+.[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+..[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+..[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+..[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+..[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0 
+..[IRQ] 4 - IRQ2 - Before clearing [INTR]: 4f0 [IRQ]: 4; After clearing [INTR]: f0 [IRQ]: 0
+
+//---------- change .pio file line 25 to irq wait 1 (2^1 = 2) ---- new output below
+Welcome to minicom 2.9
+
+OPTIONS: I18n 
+Compiled on Mar  9 2025, 12:21:15.
+Port /dev/ttyS4, 14:33:00
+
+Press CTRL-A Z for help on special keys               +----------------------+
+                                                      |    Leave Minicom?    |
+start program                                         |     Yes       No     |
+starting test for pionum: 0                           +----------------------+
+assigned NVIC PIO_IRQ (0/1): 7
+assigned offset: 21
+assigned BLINK_LED_PIN: 25
+assigned SM_CLK_FREQ: 20000.0000           <=== 20,000
+completed pioIRQ_program_init
+completed pio_set_irq0_source_mask_enabled with mask = dec: 3840 | hex: f00 | binary: 111100000000
+done test for pionum: 0
+
+PIO: 0, SM: 0, PIO_IRQ_num: 7 
+[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+.[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+.[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+.[IRQ] 2 - IRQ1 - Before clearing [INTR]: 2f0 [IRQ]: 2; After clearing [INTR]: f0 [IRQ]: 0 
+
+
+//---------- change .pio file line 25 to irq wait 0 (2^0 = 1)---- new output below
 Welcome to minicom 2.9                                                                             
                                                                                                    
 OPTIONS: I18n                                                                                      
@@ -42,7 +98,7 @@ starting test for pionum: 0                           +----------------------+
 assigned NVIC PIO_IRQ (0/1): 7                                                                     
 assigned offset: 21                                                                                
 assigned BLINK_LED_PIN: 25                                                                         
-assigned SM_CLK_FREQ: 2000.0000                                                                    
+assigned SM_CLK_FREQ: 2000.0000            <=== 2,000                                                
 completed pioIRQ_program_init                                                                      
 completed pio_set_irq0_source_mask_enabled with mask = dec: 3840 | hex: f00 | binary: 111100000000 
 done test for pionum: 0                                                                            
@@ -56,3 +112,109 @@ PIO: 0, SM: 0, PIO_IRQ_num: 7
 .....[IRQ] 1 - IRQ0 - Before clearing [INTR]: 1f0 [IRQ]: 1; After clearing [INTR]: f0 [IRQ]: 0 
 .....[IRQ] 1 - IRQ0 - Before clearing [INTR]: 1f0 [IRQ]: 1; After clearing [INTR]: f0 [IRQ]: 0 
 .....[IRQ] 1 - IRQ0 - Before clearing [INTR]: 1f0 [IRQ]: 1; After clearing [INTR]: f0 [IRQ]: 0 
+
+//---------- change .pio file line 25 to irq wait 4 (2^4 = 16)---- new output below (hangs)
+Welcome to minicom 2.9                                                                             
+                                                                                                   
+OPTIONS: I18n                                                                                      
+Compiled on Mar  9 2025, 12:21:15.                                                                 
+Port /dev/ttyS4, 14:48:00                                                                          
+                                                                                                   
+Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000                                                                    
+completed pioIRQ_program_init                                                                      
+completed pio_set_irq0_source_mask_enabled with mask = dec: 3840 | hex: f00 | binary: 111100000000 
+done test for pionum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+......................
+
+//---------- again with .pio file line 25 to irq wait 4 (2^4 = 16)---- new output below (hangs)
+Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000                                                                    
+completed pioIRQ_program_init                                                                      
+done test for pioNum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+..[IRQ] 16 - IRQ4 - Before clearing [INTR]: f0 [IRQ]: 10; After clearing [INTR]: f0 [IRQ]: 0       
+...[IRQ] 16 - IRQ4 - Before clearing [INTR]: f0 [IRQ]: 10; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 16 - IRQ4 - Before clearing [INTR]: f0 [IRQ]: 10; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 16 - IRQ4 - Before clearing [INTR]: f0 [IRQ]: 10; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 16 - IRQ4 - Before clearing [INTR]: f0 [IRQ]: 10; After clearing [INTR]: f0 [IRQ]: 0 
+          ^----decimal                                  ^----hex                            ^---cleared
+
+
+//---------- change .pio file line 25 to irq wait 5 (2^5 = 32)---- new output below (hangs)
+
+          Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000                                                                    
+completed pioIRQ_program_init                                                                      
+done test for pioNum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+..[IRQ] 32 - IRQ5 - Before clearing [INTR]: f0 [IRQ]: 20; After clearing [INTR]: f0 [IRQ]: 0       
+...[IRQ] 32 - IRQ5 - Before clearing [INTR]: f0 [IRQ]: 20; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 32 - IRQ5 - Before clearing [INTR]: f0 [IRQ]: 20; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 32 - IRQ5 - Before clearing [INTR]: f0 [IRQ]: 20; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 32 - IRQ5 - Before clearing [INTR]: f0 [IRQ]: 20; After clearing [INTR]: f0 [IRQ]: 0 
+          ^----decimal                                  ^----hex                            ^---cleared
+
+
+//---------- change .pio file line 25 to irq wait 6 (2^5 = 64)---- new output below (hangs)
+Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000                                                                    
+completed pioIRQ_program_init                                                                      
+done test for pioNum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+..[IRQ] 64 - IRQ6 - Before clearing [INTR]: f0 [IRQ]: 40; After clearing [INTR]: f0 [IRQ]: 0       
+...[IRQ] 64 - IRQ6 - Before clearing [INTR]: f0 [IRQ]: 40; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 64 - IRQ6 - Before clearing [INTR]: f0 [IRQ]: 40; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 64 - IRQ6 - Before clearing [INTR]: f0 [IRQ]: 40; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 64 - IRQ6 - Before clearing [INTR]: f0 [IRQ]: 40; After clearing [INTR]: f0 [IRQ]: 0 
+          ^----decimal                                  ^----hex                            ^---cleared
+
+
+//---------- change .pio file line 25 to irq wait 7 (2^7 = 128)---- new output below (hangs)
+Press CTRL-A Z for help on special keys               +----------------------+                     
+                                                      |    Leave Minicom?    |                     
+start program                                         |     Yes       No     |                     
+starting test for pionum: 0                           +----------------------+                     
+assigned NVIC PIO_IRQ (0/1): 7                                                                     
+assigned offset: 21                                                                                
+assigned BLINK_LED_PIN: 25                                                                         
+assigned SM_CLK_FREQ: 5000.0000                                                                    
+completed pioIRQ_program_init                                                                      
+done test for pioNum: 0                                                                            
+                                                                                                   
+PIO: 0, SM: 0, PIO_IRQ_num: 7                                                                      
+..[IRQ] 128 - IRQ7 - Before clearing [INTR]: f0 [IRQ]: 80; After clearing [INTR]: f0 [IRQ]: 0      
+...[IRQ] 128 - IRQ7 - Before clearing [INTR]: f0 [IRQ]: 80; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 128 - IRQ7 - Before clearing [INTR]: f0 [IRQ]: 80; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 128 - IRQ7 - Before clearing [INTR]: f0 [IRQ]: 80; After clearing [INTR]: f0 [IRQ]: 0 
+...[IRQ] 128 - IRQ7 - Before clearing [INTR]: f0 [IRQ]: 80; After clearing [INTR]: f0 [IRQ]: 0           ^----decimal                                  ^----hex                            ^---cleared
+          ^----decimal                                  ^----hex                            ^---cleared

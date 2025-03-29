@@ -22,7 +22,7 @@ delay_low:
 // (instead, set interrupt and stall)
 irq_stall:
 	nop              [29]   ; no op - used for switch debounce in another demo
-	irq wait 0              ; set a "wait" interrupt - stall pio program until irq is cleared
+	irq wait 7              ; set a "wait" interrupt - stall pio program until irq is cleared
 //	push block
     jmp start
 
