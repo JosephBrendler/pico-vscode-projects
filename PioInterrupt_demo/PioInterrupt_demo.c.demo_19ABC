@@ -15,20 +15,20 @@ PIO Demo 19A - Demonstrating ID and clearing of IRQ 0 through 4 on one state mac
 #include "PioInterrupt_demo.pio.h"
 
 // if using sm IRQs 4-7, they cannot generate NVIC IRQs to cpu, so we must poll instead of use isr/callback
-//#define IRQ_CALLBACK true // this is false for demo 19B (polling vs callback)
-#define IRQ_CALLBACK false  // false also in demo 19D (sync button)
+#define IRQ_CALLBACK true
+// #define IRQ_CALLBACK false
 
 // #define RELMODE false
-#define RELMODE true // this is true for demo 19C (multi SMs and multi LEDs) and 19D (sync button)
+#define RELMODE true
 
 static PIO PIO_O; // pio object
-                  // use all four for RELMODE
-static uint SM_0; // pio state machine index
-static uint SM_1; // pio state machine index
-static uint SM_2; // pio state machine index
-static uint SM_3; // pio state machine index
-                  // use just one for non-RELMODE
-static uint SM;   // pio state machine index
+// use all four for RELMODE
+    static uint SM_0; // pio state machine index
+    static uint SM_1; // pio state machine index
+    static uint SM_2; // pio state machine index
+    static uint SM_3; // pio state machine index
+// use just one for non-RELMODE
+    static uint SM; // pio state machine index
 
 static uint PIO_IRQ; // NVIC ARM CPU interrupt number
 // int x;
@@ -37,17 +37,12 @@ static uint PIO_IRQ; // NVIC ARM CPU interrupt number
 
 static float SM_CLK_FREQ = 2000;
 
-// Assign GPIO0 as the blinking LED
-static uint BLINK_LED0_PIN = 25; // Square Green
-static uint BLINK_LED1_PIN = 28; // Green
-static uint BLINK_LED2_PIN = 29; // Yellow
-static uint BLINK_LED3_PIN = 4;  // Red
 
-static uint JMP_PIN_0 = 14; // stall SM0's PIO program (blue)
-static uint JMP_PIN_1 = 13; // stall SM1's PIO program (deep purple)
-static uint JMP_PIN_2 = 12; // stall SM2's PIO program (gray)
-static uint JMP_PIN_3 = 7;  // stall SM3's PIO program (brown)
-static uint sync_pin = 20;  // synchronize all SMs PIO programs (LEDs) (demo 19D)
+// Assign GPIO0 as the blinking LED
+static uint BLINK_LED0_PIN = 25;    // Square Green
+static uint BLINK_LED1_PIN = 28;    // Green
+static uint BLINK_LED2_PIN = 29;    // Yellow
+static uint BLINK_LED3_PIN = 4;     // Red
 
 void print_binary(int number)
 {
@@ -71,7 +66,7 @@ void print_binary(int number)
 }
 
 void pioIRQ()
-{ // This is our callback/polling function  // not used in demo 19D (add disable/enable to document)
+{ // This is our callback/polling function
 
     // could use this to set up a case statement instead - but only works for
     // printf("[IRQ] %d - ", PIO_O->irq & 0b1111);   // use this when only using callback irqs (0-3)
@@ -150,16 +145,8 @@ void testIRQPIO(uint pioNum)
 
     // assign led(s) (globally, done way above)
     printf("assigned BLINK_LED0_PIN: %d\n", BLINK_LED0_PIN);
-    printf("assigned BLINK_LED1_PIN: %d\n", BLINK_LED1_PIN);
     printf("assigned BLINK_LED2_PIN: %d\n", BLINK_LED2_PIN);
     printf("assigned BLINK_LED3_PIN: %d\n", BLINK_LED3_PIN);
-
-    printf("assigned JMP_PIN_0: %d\n", JMP_PIN_0);
-    printf("assigned JMP_PIN_1: %d\n", JMP_PIN_1);
-    printf("assigned JMP_PIN_2: %d\n", JMP_PIN_2);
-    printf("assigned JMP_PIN_3: %d\n", JMP_PIN_3);
-
-    printf("assigned sync_pin: %d\n", sync_pin);
 
     if (RELMODE) // assign state machine(s) as appropriate
     {
@@ -170,13 +157,13 @@ void testIRQPIO(uint pioNum)
         pio_sm_claim(PIO_O, 1);
         pio_sm_claim(PIO_O, 2);
         pio_sm_claim(PIO_O, 3);
-        pioIRQ_program_init(PIO_O, 0, offset, BLINK_LED0_PIN, JMP_PIN_0, SM_CLK_FREQ);
-        sleep_ms(250); // instantiate the 4 sm at 250 ms intervals
-        pioIRQ_program_init(PIO_O, 1, offset, BLINK_LED1_PIN, JMP_PIN_1, SM_CLK_FREQ);
+        pioIRQ_program_init(PIO_O, 0, offset, BLINK_LED0_PIN, SM_CLK_FREQ);    
+        sleep_ms(250);  // instantiate the 4 sm at 250 ms intervals
+        pioIRQ_program_init(PIO_O, 1, offset, BLINK_LED1_PIN, SM_CLK_FREQ);    
         sleep_ms(250);
-        pioIRQ_program_init(PIO_O, 2, offset, BLINK_LED2_PIN, JMP_PIN_2, SM_CLK_FREQ);
+        pioIRQ_program_init(PIO_O, 2, offset, BLINK_LED2_PIN, SM_CLK_FREQ);    
         sleep_ms(250);
-        pioIRQ_program_init(PIO_O, 3, offset, BLINK_LED3_PIN, JMP_PIN_0, SM_CLK_FREQ);
+        pioIRQ_program_init(PIO_O, 3, offset, BLINK_LED3_PIN, SM_CLK_FREQ);
     }
     else
     {
@@ -184,7 +171,7 @@ void testIRQPIO(uint pioNum)
         // none). Configure it to run our program, and start it, using the
         // helper function we included in our .pio file.
         SM = pio_claim_unused_sm(PIO_O, true);
-        pioIRQ_program_init(PIO_O, SM, offset, BLINK_LED0_PIN, JMP_PIN_0, SM_CLK_FREQ);
+        pioIRQ_program_init(PIO_O, SM, offset, BLINK_LED0_PIN, SM_CLK_FREQ);
     }
     printf("completed pioIRQ_program_init\n");
 
@@ -212,9 +199,6 @@ int main(void)
 {
     stdio_init_all();
     // sleep_ms(20000);  //gives me time to start PuTTY
-    gpio_set_dir(sync_pin, false); // set gpio as input
-    gpio_pull_down(sync_pin);
-
     printf("start program\n");
     testIRQPIO(0);
     printf("PIO: %d, SM: %d, PIO_IRQ_num: %d \n", pio_get_index(PIO_O), SM, PIO_IRQ);
@@ -223,16 +207,9 @@ int main(void)
     {
         sleep_ms(200);
         printf("."); // watchdog printout
-//        if (!IRQ_CALLBACK)   // removed for demo 19D (not polling nor callback function; poll below)
-//        {             // if using hiher irqs, we must poll instead of callback
-//            pioIRQ(); // since loop sleeps 200ms, that determines the polling frequencdy
-//        }
-        sleep_ms(200);
-        if (gpio_get(sync_pin) == 1)
-        {
-            sleep_ms(30);
-            pio_interrupt_clear(PIO_O, 7); // clear here in polling rather than in callback
-            printf("IRQ7 cleared");
+        if (!IRQ_CALLBACK)
+        {             // if using hiher irqs, we must poll instead of callback
+            pioIRQ(); // since loop sleeps 200ms, that determines the polling frequencdy
         }
     }
 

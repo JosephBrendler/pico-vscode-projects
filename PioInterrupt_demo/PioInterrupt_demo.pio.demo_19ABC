@@ -7,23 +7,24 @@
 
 // turn on the LED and delay, taking 1000 cycles
 start:
-    set pins, 1
-	set x,   31     [6]
+    set pins, 1             ; turn on led
+	set x,   31     [6]     ; put number of loop iterations into x scratch register; delay 6 cycles
 delay_high:
-	nop				[29]
-	jmp x-- delay_high
-// turn off the LED and delay, taking 1000 cycles
+	nop				[29]    ; no op for 30 clock cycles
+	jmp x-- delay_high      ; loop until x is decremented from 31 to 0
+// turn off the LED and delay, taking 1000 cycles (exactly like above)
     set pins, 0
 	set x,   31     [6]
 delay_low:	
 	nop				[29]
 	jmp x-- delay_low	
-//  jmp start
-//set interrupt and stall
+//  jmp start  (if un-commented, this would blink forever)
+// (instead, set interrupt and stall)
 irq_stall:
-	nop              [29]
-	irq wait 3
-//	push block
+	nop              [29]   ; no op - used for switch debounce in another demo
+//	irq wait 0              ; set a "wait" interrupt - stall pio program until irq is cleared
+	irq wait 3 rel          ; set a rel mode "wait" interrupt - stall pio program until irq is cleared
+//	push block  // must be for other demo
     jmp start
 
 
