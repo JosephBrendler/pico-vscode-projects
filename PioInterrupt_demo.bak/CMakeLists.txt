@@ -37,15 +37,15 @@ pico_sdk_init()
 
 add_executable(PioInterrupt_demo PioInterrupt_demo.c )
 
-pico_set_program_name(pio_intePioInterrupt_demorrupt_demos "PioInterrupt_demo")
+pico_set_program_name(PioInterrupt_demo "PioInterrupt_demo")
 pico_set_program_version(PioInterrupt_demo "0.1")
 
 # Generate PIO header
-pico_generate_pio_header(PioInterrupt_demo ${CMAKE_CURRENT_LIST_DIR}/PioInterrupt_demo.pio)
+pico_generate_pio_header(PioInterrupt_demo ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(pio_interrupt_demos 1)
-pico_enable_stdio_usb(pio_interrupt_demos 0)
+pico_enable_stdio_uart(PioInterrupt_demo 0)
+pico_enable_stdio_usb(PioInterrupt_demo 0)
 
 # Add the standard library to the build
 target_link_libraries(PioInterrupt_demo
