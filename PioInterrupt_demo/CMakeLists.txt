@@ -46,7 +46,7 @@ pico_generate_pio_header(PioInterrupt_demo
     )
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(PioInterrupt_demo 0)
+pico_enable_stdio_uart(PioInterrupt_demo 1)
 pico_enable_stdio_usb(PioInterrupt_demo 0)
 
 # Add the standard library to the build
