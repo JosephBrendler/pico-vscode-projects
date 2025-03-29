@@ -21,6 +21,8 @@ PIO Demo 19A - Demonstrating ID and clearing of IRQ 0 through 4 on one state mac
  //char* pointer = (char*)0x50200128; //pointer for PIO0 INTR register
  //char* pointerNVIC = (char*)(PPB_BASE + M0PLUS_NVIC_ICPR_OFFSET); //pointer for NVIC ICPR register
 
+ static float SM_CLK_FREQ = 20000;
+
  void print_binary(int number) {
     char oldbinary[] = "";
     char binary[] = "";
@@ -86,7 +88,6 @@ PIO Demo 19A - Demonstrating ID and clearing of IRQ 0 through 4 on one state mac
      printf("assigned BLINK_LED_PIN: %d\n", BLINK_LED_PIN);
 
      // select the desired state machine clock frequency (2000 is about the lower limit)
-     float SM_CLK_FREQ = 2000;
      printf("assigned SM_CLK_FREQ: %.4f\n", SM_CLK_FREQ);
 
      // Find a free state machine on our chosen PIO (erroring if there are
