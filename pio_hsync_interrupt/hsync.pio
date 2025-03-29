@@ -1,0 +1,10 @@
+.program hsync
+
+.wrap_target
+
+    wait pin 0
+    wait pin 1
+    irq 0
+
+.wrap
+
