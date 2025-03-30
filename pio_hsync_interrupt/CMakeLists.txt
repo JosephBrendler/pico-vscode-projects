@@ -49,7 +49,8 @@ pico_enable_stdio_usb(pio_hsync_interrupt 0)
 
 # Add the standard library to the build
 target_link_libraries(pio_hsync_interrupt
-        pico_stdlib)
+        pico_stdlib
+        )
 
 # Add the standard include files to the build
 target_include_directories(pio_hsync_interrupt PRIVATE

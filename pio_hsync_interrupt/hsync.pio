@@ -1,10 +1,19 @@
 .program hsync
 
 .wrap_target
+    NOP
 
-    wait pin 0
-    wait pin 1
-    irq wait 0
+wait_high:              // wait while the pin is high, for it to go low
+//    wait pin 0
+
+wait_low:               // wait while the pin is low, for it to go high (trigger irq on rising edge)
+//    wait pin 1
+    NOP
+    jmp pin irq_stall   // if pin has gone high, set irq
+    jmp wait_low
+
+irq_stall:
+    irq wait 0          // set sm irq0 and wait for it to be cleared
 
 .wrap
 
@@ -21,7 +30,7 @@ static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, f
     // Set this pin's GPIO function (connect PIO to the pad)
     pio_gpio_init(pio, pin);
 
-    // Set the one pin direction to input at the PIO according to -
+    // Set the pin direction to input according to -
     // int pio_sm_set_consecutive_pindirs(PIO pio, uint sm, uint pin, uint count, bool is_out)
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
 

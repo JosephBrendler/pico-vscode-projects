@@ -1,0 +1,36 @@
+20250329 20:25 -----------------------------------------------------------
+Welcome to minicom 2.9                                                                             
+                                                                                                   
+OPTIONS: I18n                                                                                      
+Compiled on Mar  9 2025, 12:21:15.                                                                 
+Port /dev/ttyS4, 22:24:00                                                                          
+                                                                                                   
+Press CTRL-A Z for help on special keys                                                            
+                                                                                                   
+start program                                                                                      
+assigning PIO and IRQ for pionum: 0                                                                
+assigned PIO 0, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): 7                                          
+loaded hsync_program and got offset: 29                                                            
+assigned SM_CLK_FREQ: 25000000.0000                                                                
+assigned Hsync GPIO_PIN: 15                                                                        
+checked SM: 0, (uncliamed)                                                                         
+checked SM: 1, (uncliamed)                                                                         
+checked SM: 2, (uncliamed)                                                                         
+checked SM: 3, (uncliamed)                                                                         
+now trying to claim an unused SM ... claimed SM: 0                                                 
+initialized hsync_program on SM: 0, at offset 29, GPIO_PIN: 15, and SM_CLK_FREQ: 0
+enabled irq0_source on pis_interrupt0: 8
+---------( next line takes a long time to come out)----------------------
+interrupt handler hsync_pio_isr set and enabled for PIO_IRQ 7 mapped to NVIC pis_interrupt0: 8
+Done setup                                        ^-- sm0 irq0  NVIC irq0 source 7 
+
+(1) Hello, 0th interrupted world!
+  time between Hsync interrupts: 1
+(2) Hello, 0th interrupted world!
+  time between Hsync interrupts: 0
+(3) Hello, 0th interrupted world!
+  time between Hsync interrupts: 0
+  -------( these keep couming, once in a while, only ever 0 or 1)------------------
+  /// would indicate Hsync pulse rate at <1us  (maybe wrong wire?)
+  /// No ---- o'scope shows 39us pulse high-to-low for about 5us -----
+  /// maybe give it some NOP instructions in pio program? -------------
