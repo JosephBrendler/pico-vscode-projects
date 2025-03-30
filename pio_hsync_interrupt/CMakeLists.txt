@@ -46,8 +46,8 @@ pico_generate_pio_header(pio_hsync_interrupt
     )
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(pio_hsync_interrupt 0)
-pico_enable_stdio_usb(pio_hsync_interrupt 1)
+pico_enable_stdio_uart(pio_hsync_interrupt 1)
+pico_enable_stdio_usb(pio_hsync_interrupt 0)
 
 # Add the standard library to the build
 target_link_libraries(pio_hsync_interrupt
@@ -61,7 +61,9 @@ target_include_directories(pio_hsync_interrupt PRIVATE
 # Add any user requested libraries
 target_link_libraries(pio_hsync_interrupt 
         hardware_pio
+        hardware_irq
         hardware_gpio
+        hardware_clocks
         )
 
 pico_add_extra_outputs(pio_hsync_interrupt)

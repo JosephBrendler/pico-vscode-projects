@@ -195,7 +195,7 @@ void testIRQPIO(uint pioNum)
         // pio_set_irq0_source_enabled(PIO_O, pis_interrupt1, true); // sets IRQ1
         // pio_set_irq0_source_enabled(PIO_O, pis_interrupt2, true); // sets IRQ2
         // pio_set_irq0_source_enabled(PIO_O, pis_interrupt3, true); // sets IRQ3
-        //*********or************
+        // *********or************
         int mask = 3840;                                     // setting all 4 at once
         pio_set_irq0_source_mask_enabled(PIO_O, mask, true); // setting all 4 at once
         printf("completed pio_set_irq0_source_mask_enabled with mask = dec: %d | hex: %x | binary: ", mask, mask);
