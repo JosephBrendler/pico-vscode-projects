@@ -1,0 +1,38 @@
+.program hsync
+
+.wrap_target
+
+    wait pin 0
+    wait pin 1
+    irq wait 0
+
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+
+    pio_sm_config c = hsync_program_get_default_config(offset);
+
+    // Map the state machine's SET pin group to one pin, namely the `pin`
+    // parameter to this function.
+    sm_config_set_set_pins(&c, pin, 1);
+
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // Set the one pin direction to input at the PIO according to -
+    // int pio_sm_set_consecutive_pindirs(PIO pio, uint sm, uint pin, uint count, bool is_out)
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+
+    // set the state machine clock rate
+    float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+    sm_config_set_clkdiv(&c, div);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
