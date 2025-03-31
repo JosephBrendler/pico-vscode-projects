@@ -16,6 +16,9 @@
 
 // Define the GPIO pin to monitor
 static uint HSYNC_PIN = 15;
+// for input gpio; set true for pullup | false for pulldown (one true if needed; else set both false)
+static bool PULL_UP = true;
+static bool PULL_DOWN = false;
 
 // debug variable for testing
 static uint verbosity = 2;
@@ -57,10 +60,6 @@ void setup() {
     irq_set_enabled(PIO_IRQ, false);
     printf("  disabled interrupts for PIO_IRQ: %d while running setup\n", PIO_IRQ);
 
-    // set gpio as input for sync pin, and configure for pull up/down as applicable
-    gpio_set_dir(HSYNC_PIN, false);
-    gpio_pull_up(HSYNC_PIN);
-
     // select PIO instance and IRQ pabsed on glogal static pioNum defined at the top
     printf("  assigning PIO and IRQ for pionum: %d\n", pioNum);
     PIO_0 = pioNum ? pio1 : pio0;               // Selects the pio instance (0 or 1 for pioNUM)
@@ -99,8 +98,13 @@ void setup() {
     printf("  div = ( clock_get_hz(clk_sys): %.4f  / SM_CLK_FREQ: %.4f ) = div: %.4f \n", 
         sys_clock, SM_CLK_FREQ, div);
 
-    // HSYNC_PIN was assigned in the top block; print here to ackowledge as part of setup
-    printf("  assigned Hsync HSYNC_PIN: %d\n", HSYNC_PIN);
+    //  print here to ackowledge as part of setup
+    // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
+    gpio_set_dir(HSYNC_PIN, false);
+    char updown[] = "not set";
+    if (PULL_DOWN) { gpio_pull_down(HSYNC_PIN); sprintf(updown, "down"); }
+    if (PULL_UP) { gpio_pull_up(HSYNC_PIN); sprintf(updown, "up"); }
+    printf("  configured HSYNC_PIN: %d as input, with pullup/down: %s\n", HSYNC_PIN, updown);
 
     // initialize hsync program on sm
     hsync_program_init(PIO_0, SM, offset, HSYNC_PIN, div);
@@ -140,7 +144,7 @@ void loop() {
 //            irq_set_enabled(PIO_IRQ, true);           // donnt use NVIC - just poll INTR in loop
         }
         if ( time_us_64() % 1000000 == 0 ) {
-            printf("Runtime: (%ds), IRQs: (%llu), Inter-inq Delta_t: (%llu us)\n", count ++, interrupt_count, timeBetweenInterrupts);
+            printf("Runtime: (%ds), IRQs: (%llu), Delta_t btw IRQs: (%llu us)\n", count ++, interrupt_count, timeBetweenInterrupts);
         }
     }
     printf("done microcontroller loop ...\n");

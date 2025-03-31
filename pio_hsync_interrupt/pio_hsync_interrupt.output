@@ -54,3 +54,35 @@ irq_stall:
 
 .wrap
 --------------------------------------
+
+20250331 08:15 -------(made some minor formatting tweaks to primary c program)------------------------------
+initialized stdio; starting main program
+starting setup ...
+  disabled interrupts for PIO_IRQ: 0 while running setup
+  assigning PIO and IRQ for pionum: 0
+  assigned PIO: 0, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): 7
+  loaded hsync_program and got offset: 29
+  now trying to claim an unused SM ...   claimed SM: 0
+  assigned SM_CLK_FREQ: 25000000.0000
+  div = ( clock_get_hz(clk_sys): 125000000.0000  / SM_CLK_FREQ: 25000000.0000 ) = div: 5.0000 
+  configured HSYNC_PIN: 15 as input, with pullup/down: up
+  initialized hsync_program on SM: 0, at offset 29, HSYNC_PIN: 15, and SM_CLK_FREQ: 25000000.00000
+  enabled irq0_source on pis_interrupt0: 8
+  irq_set_exclusive_handler done for PIO_IRQ: 7, &hsync_pio_isr
+  irq_set_enabled for PIO_IRQ 7
+Done setup
+
+back in main()
+running microcontroller loop ...
+Runtime: (0s), IRQs: (23912), Delta_t btw IRQs: (39 us)
+Runtime: (1s), IRQs: (49597), Delta_t btw IRQs: (39 us)
+Runtime: (2s), IRQs: (75283), Delta_t btw IRQs: (38 us)
+Runtime: (3s), IRQs: (100968), Delta_t btw IRQs: (39 us)
+Runtime: (4s), IRQs: (126651), Delta_t btw IRQs: (39 us)
+Runtime: (5s), IRQs: (152335), Delta_t btw IRQs: (39 us)
+Runtime: (6s), IRQs: (178018), Delta_t btw IRQs: (38 us)
+Runtime: (7s), IRQs: (203701), Delta_t btw IRQs: (39 us)
+Runtime: (8s), IRQs: (229385), Delta_t btw IRQs: (39 us)
+Runtime: (9s), IRQs: (255068), Delta_t btw IRQs: (38 us)
+done microcontroller loop ...
+back in main(); program complete
