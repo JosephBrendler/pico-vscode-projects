@@ -57,10 +57,9 @@ void setup() {
     irq_set_enabled(PIO_IRQ, false);
     printf("  disabled interrupts for PIO_IRQ: %d while running setup\n", PIO_IRQ);
 
-    // move this to pio helper function?
-    gpio_set_dir(HSYNC_PIN, false); // set gpio as input for sync pin
-    //gpio_pull_down(HSYNC_PIN);       // maybe make this pull up (since it drives low)
-    gpio_pull_up(HSYNC_PIN);        // maybe make this pull up (since it drives low)
+    // set gpio as input for sync pin, and configure for pull up/down as applicable
+    gpio_set_dir(HSYNC_PIN, false);
+    gpio_pull_up(HSYNC_PIN);
 
     // select PIO instance and IRQ pabsed on glogal static pioNum defined at the top
     printf("  assigning PIO and IRQ for pionum: %d\n", pioNum);
@@ -68,22 +67,11 @@ void setup() {
     PIO_IRQ = pioNum ? PIO1_IRQ_0 : PIO0_IRQ_0; // Selects the NVIC PIO_IRQ to use
     printf("  assigned PIO: %d, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): %d\n", pioNum, PIO_IRQ);
 
-    // Load PIO program to monitor rising edge
+    // Load PIO program to monitor rising edge of an acive-low Hsync pulse
     uint offset = pio_add_program(PIO_0, &hsync_program);
     printf("  loaded hsync_program and got offset: %d\n", offset);
 
-    // select the desired state machine clock frequency (2000 is about the lower limit)
-    printf("  assigned SM_CLK_FREQ: %.4f\n", SM_CLK_FREQ);
-    // calculate the clock divider
-    float sys_clock = clock_get_hz(clk_sys);
-    float div =  ( sys_clock / SM_CLK_FREQ ); 
-    printf("  div = ( clock_get_hz(clk_sys): %.4f  / SM_CLK_FREQ: %.4f ) = div: %.4f \n", 
-        sys_clock, SM_CLK_FREQ, div);
-
-    // assign hsync pin
-   printf("  assigned Hsync HSYNC_PIN: %d\n", HSYNC_PIN);
-
-    // examine existing SMs on this PIO
+    // examine existing SMs on this PIO; nothing else should be useing them, but unclaim them if needed
     for (uint i = 0; i < 4; i++)
     {
         if (pio_sm_is_claimed(PIO_0, i))
@@ -98,15 +86,28 @@ void setup() {
             if ( verbosity >= 3 ) { printf("  checked SM: %d, (uncliamed)\n", i); }
         }
     }
+    // now claim a state macinge (sm)
     printf("  now trying to claim an unused SM ... ");
     SM = pio_claim_unused_sm(PIO_0, true);
     printf("  claimed SM: %d\n", SM);
+
+    // SM_CLK_FREQ was assigned in the top block; print here to ackowledge as part of setup
+    printf("  assigned SM_CLK_FREQ: %.4f\n", SM_CLK_FREQ);
+    // calculte the divider required to generate the desired state machine clock frequency
+    float sys_clock = clock_get_hz(clk_sys);
+    float div =  ( sys_clock / SM_CLK_FREQ ); 
+    printf("  div = ( clock_get_hz(clk_sys): %.4f  / SM_CLK_FREQ: %.4f ) = div: %.4f \n", 
+        sys_clock, SM_CLK_FREQ, div);
+
+    // HSYNC_PIN was assigned in the top block; print here to ackowledge as part of setup
+    printf("  assigned Hsync HSYNC_PIN: %d\n", HSYNC_PIN);
+
     // initialize hsync program on sm
     hsync_program_init(PIO_0, SM, offset, HSYNC_PIN, div);
     printf("  initialized hsync_program on SM: %d, at offset %d, HSYNC_PIN: %d, and SM_CLK_FREQ: %.5f\n", SM, offset, HSYNC_PIN, SM_CLK_FREQ);
 
-    // enables IRQ for the statemachine - setting IRQ0_INTE - interrupt enable register
-    // enumeration is at sdk ref p. 215  (pis_interrupt0 = 8)
+    // use the pio_set_irq0_source_enabled API to enable PIO IRQ for the statemachine (set IRQ0_INTE)
+    // interrupt enable register.  enumeration is at sdk ref p. 215  (pis_interrupt0 = 8)
     pio_set_irq0_source_enabled(PIO_0, pis_interrupt0, true);
     printf("  enabled irq0_source on pis_interrupt0: %d\n", pis_interrupt0);
 
@@ -117,6 +118,7 @@ void setup() {
     // re-enable irqs after setup -- this enagles the NVIC interrupt on the CPU
     irq_set_enabled(PIO_IRQ, true);
     printf("  irq_set_enabled for PIO_IRQ %d\n", PIO_IRQ);
+    
     printf("Done setup\n\n");
 }
 
@@ -146,13 +148,12 @@ void loop() {
 
 int main()
 {
-    printf("starting main program\n");
-    // initialize standard io (tp get status and debug info)
+    // initialize standard io (to get status and debug info; e.g. printf won't work intil this is set up)
     stdio_init_all();
-    printf("initialized stdio\n");
+    printf("initialized stdio; starting main program\n");
     setup();
     printf("back in main()\n");
     loop();
-    printf("done main program\n");
+    printf("back in main(); program complete\n");
     return 0;
 }
