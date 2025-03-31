@@ -45,13 +45,11 @@ void hsync_pio_isr()
     interrupt_flag = true;
 }
 
-void clear_irq() {
+void examine_irq() {
     // Clear the interrupt flag
     if (pio_interrupt_get(PIO_0, 0)) // returns TRUE if IRQ 0 is set
     {
-        printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", PIO_0->intr, PIO_0->irq);
-        pio_interrupt_clear(PIO_0, 0);
-        printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", PIO_0->intr, PIO_0->irq);
+            printf("IRQ0 [INTR]: %x [IRQ]: %x; ", PIO_0->intr, PIO_0->irq);
     }
     else
     {
@@ -84,7 +82,7 @@ void setup() {
     // select the desired state machine clock frequency (2000 is about the lower limit)
     printf("  assigned SM_CLK_FREQ: %.4f\n", SM_CLK_FREQ);
     float div = clock_get_hz(clk_sys) / SM_CLK_FREQ; // calculates the clock divider
-    printf("  helper function will calculate divider div (clk_sys / SM_CLK_FREQ = %.4f\n)", div);
+    printf("  helper function will calculate divider div (clk_sys / SM_CLK_FREQ = %.4f)", div);
 
     // assign hsync pin
     printf("  assigned Hsync HSYNC_PIN: %d\n", HSYNC_PIN);
@@ -112,55 +110,60 @@ void setup() {
     printf("  initialized hsync_program on SM: %d, at offset %d, HSYNC_PIN: %d, and SM_CLK_FREQ: %d\n", SM, offset, HSYNC_PIN, SM_CLK_FREQ);
 
     // enables IRQ for the statemachine - setting IRQ0_INTE - interrupt enable register
-    // pio_set_irq0_source_enabled(PIO_O, pis_interrupt0, true); // sets PIO IRQ0 (bit 8 of INTR is src)
-    // enumeration is at sdk ref p. 215  (pis_interrupt0 = 8)
+    // pio_set_irq0_source_enabled(PIO_O, pis_interrupt0, true); // sets NVIC IRQ0
+    // enumeration is at sdk ref p. 215
     pio_set_irq0_source_enabled(PIO_0, pis_interrupt0, true);
     printf("  enabled irq0_source on pis_interrupt0: %d\n", pis_interrupt0);
 
-    // Set up and enable the interrupt handler - for NVIC interrupts on the CPU
-//    irq_set_exclusive_handler(PIO_IRQ, &hsync_pio_isr);
-//    printf("  irq_set_exclusive_handler done for PIO_IRQ: %d, &hsync_pio_isr\n", PIO_IRQ);
-// disabled isr() for now - poll in loop
+    // Set up and enable the interrupt handler
+    irq_set_exclusive_handler(PIO_IRQ, &hsync_pio_isr);
+    printf("  irq_set_exclusive_handler done for PIO_IRQ: %d, &hsync_pio_isr\n", PIO_IRQ);
 
-    // re-enable irqs after setup -- this enagles the NVIC interrupt on the CPU
-//    irq_set_enabled(PIO_IRQ, true);
-//    printf("  irq_set_enabled for PIO_IRQ %d\n", PIO_IRQ);
+    // re-enable irqs after setup
+    irq_set_enabled(PIO_IRQ, true);
+    printf("  irq_set_enabled for PIO_IRQ %d\n", PIO_IRQ);
     printf("Done setup\n\n");
 }
 
 void loop() {
     printf("running microcontroller loop ...");
     int count = 0;
-    while (count < 60)
+    while (count++ < 20)
     {
-//        if (interrupt_flag)   // disabled isr() for nwo - poll here
-        if (pio_interrupt_get(PIO_0, 0))
+        printf("(%d) ", count);
+        if (interrupt_flag)
         {
             // disable irqs while handling one
-//            irq_set_enabled(PIO_IRQ, false);      // don't use NVIC, just poll INTR in loop
+            irq_set_enabled(PIO_IRQ, false);
 
             // do math/ops/debug ...
             currentTime = time_us_64();
-            printf("currentTime: %llu\n", currentTime);
+            if (verbosity >= 3) { printf("currentTime: %llu\n", currentTime); }
             interrupt_count++;
             timeBetweenInterrupts = currentTime - lastInterruptTime;
             lastInterruptTime = currentTime;
-//            interrupt_flag = false;       // don't need this if not using NVIC IRQ
+//           printf("Hello, %dth interrupted world!\n", interrupt_count);
+//           printf("  time between Hsync interrupts: %llu\n", timeBetweenInterrupts);
+            if (verbosity >= 3) { printf("(%llu) (%llu us)\n", interrupt_count, timeBetweenInterrupts); }
+            interrupt_flag = false;
 
-            clear_irq();
+            // examine the interrupt
+            examine_irq();
+            // clear the irq
+            pio_interrupt_clear(PIO_0, 0);
+            // examine again to confirm clear
+            examine_irq();
 
-            // re-enable irqs after handling one    
-//            irq_set_enabled(PIO_IRQ, true);           // donnt use NVIC - just poll INTR in loop
+            // re-enable irqs after handling one
+            irq_set_enabled(PIO_IRQ, true);
         }
         else
         {
             printf("Hello, un-interrupted world!\n");
         }
-        if ( currentTime % 1000000 ) {
-            printf("Seconds: (%d), IRQs: (%llu), Delta t: (%llu us)\n\n", count ++, interrupt_count, timeBetweenInterrupts);
-        }
+        sleep_ms(1000);
     }
-    printf("done microcontroller loop ...\n");
+    printf("done microcontroller loop ...");
 }
 
 int main()

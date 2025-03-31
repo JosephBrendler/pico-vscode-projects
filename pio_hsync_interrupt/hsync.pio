@@ -1,19 +1,19 @@
 .program hsync
 
 .wrap_target
-    NOP
 
-wait_high:              // wait while the pin is high, for it to go low
-    wait pin 0
+wait_while_high:            ; wait while the pin is high, for it to go low
+    wait 0 pin 0            ; syntax: wait <polarity> <src> <index> ( rel )
+    NOP [6]                 ; debounce ?
 
-wait_low:               // wait while the pin is low, for it to go high (trigger irq on rising edge)
-    NOP
-    jmp pin irq_stall   // if pin has gone high, set irq
-    jmp wait_low
+wait_while_low:             ; wait while the pin is low, for it to go high (trigger irq on rising edge)
+    jmp pin irq_stall       ; syntax: jmp ( <cond> ) <target> // if pin has gone high, set irq
+    jmp wait_while_low      ; syntax: jmp ( <cond> ) <target>
 
 irq_stall:
-    irq wait 0          // set sm irq0 and wait for it to be cleared
-    wait pin 1
+    irq wait 0              ; syntax: irq wait <irq_num> ( rel ) // set irq0 and wait for it to be cleared
+    NOP [6]                 ; debounce ?
+    wait 1 pin 0            ; syntax: wait <polarity> <src> <index>
 
 .wrap
 
@@ -25,14 +25,14 @@ static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, f
 
     // Map the state machine's SET pin group to one pin, namely the `pin`
     // parameter to this function.
-    sm_config_set_set_pins(&c, pin, 1);
-
-    // Set this pin's GPIO function (connect PIO to the pad)
-    pio_gpio_init(pio, pin);
+//    sm_config_set_set_pins(&c, pin, 1);   // (not setting any pins in this application)
 
     // Set the pin direction to input according to -
     // int pio_sm_set_consecutive_pindirs(PIO pio, uint sm, uint pin, uint count, bool is_out)
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
 
     // set the state machine clock rate
     float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
