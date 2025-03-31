@@ -1,36 +1,56 @@
-20250329 20:25 -----------------------------------------------------------
-Welcome to minicom 2.9                                                                             
-                                                                                                   
-OPTIONS: I18n                                                                                      
-Compiled on Mar  9 2025, 12:21:15.                                                                 
-Port /dev/ttyS4, 22:24:00                                                                          
-                                                                                                   
-Press CTRL-A Z for help on special keys                                                            
-                                                                                                   
-start program                                                                                      
-assigning PIO and IRQ for pionum: 0                                                                
-assigned PIO 0, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): 7                                          
-loaded hsync_program and got offset: 29                                                            
-assigned SM_CLK_FREQ: 25000000.0000                                                                
-assigned Hsync GPIO_PIN: 15                                                                        
-checked SM: 0, (uncliamed)                                                                         
-checked SM: 1, (uncliamed)                                                                         
-checked SM: 2, (uncliamed)                                                                         
-checked SM: 3, (uncliamed)                                                                         
-now trying to claim an unused SM ... claimed SM: 0                                                 
-initialized hsync_program on SM: 0, at offset 29, GPIO_PIN: 15, and SM_CLK_FREQ: 0
-enabled irq0_source on pis_interrupt0: 8
----------( next line takes a long time to come out)----------------------
-interrupt handler hsync_pio_isr set and enabled for PIO_IRQ 7 mapped to NVIC pis_interrupt0: 8
-Done setup                                        ^-- sm0 irq0  NVIC irq0 source 7 
+20250331 00:22 -----------------------------------------------------------
+Welcome to minicom 2.9
 
-(1) Hello, 0th interrupted world!
-  time between Hsync interrupts: 1
-(2) Hello, 0th interrupted world!
-  time between Hsync interrupts: 0
-(3) Hello, 0th interrupted world!
-  time between Hsync interrupts: 0
-  -------( these keep couming, once in a while, only ever 0 or 1)------------------
-  /// would indicate Hsync pulse rate at <1us  (maybe wrong wire?)
-  /// No ---- o'scope shows 39us pulse high-to-low for about 5us -----
-  /// maybe give it some NOP instructions in pio program? -------------
+OPTIONS: I18n 
+Compiled on Mar  9 2025, 12:21:15.
+Port /dev/ttyS4, 00:21:00
+
+Press CTRL-A Z for help on special keys
+
+initialized stdio
+starting setup ...
+  disabled interrupts for PIO_IRQ: 0 while running setup
+  assigning PIO and IRQ for pionum: 0
+  assigned PIO: 0, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): 7
+  loaded hsync_program and got offset: 29
+  assigned SM_CLK_FREQ: 25000000.0000
+  div = ( clock_get_hz(clk_sys): 125000000.0000  / SM_CLK_FREQ: 25000000.0000 ) = div: 5.0000 
+  assigned Hsync HSYNC_PIN: 15
+  now trying to claim an unused SM ...   claimed SM: 0
+  initialized hsync_program on SM: 0, at offset 29, HSYNC_PIN: 15, and SM_CLK_FREQ: 25000000.00000
+  enabled irq0_source on pis_interrupt0: 8
+  irq_set_exclusive_handler done for PIO_IRQ: 7, &hsync_pio_isr
+  irq_set_enabled for PIO_IRQ 7
+Done setup
+
+back in main()
+running microcontroller loop ...
+Runtime: (0s), IRQs: (24026), Inter-inq Delta_t: (39 us)
+Runtime: (1s), IRQs: (49708), Inter-inq Delta_t: (38 us)
+Runtime: (2s), IRQs: (75391), Inter-inq Delta_t: (39 us)
+Runtime: (3s), IRQs: (101074), Inter-inq Delta_t: (39 us)
+Runtime: (4s), IRQs: (126756), Inter-inq Delta_t: (38 us)
+Runtime: (5s), IRQs: (152437), Inter-inq Delta_t: (39 us)
+Runtime: (6s), IRQs: (178118), Inter-inq Delta_t: (39 us)
+Runtime: (7s), IRQs: (203799), Inter-inq Delta_t: (39 us)
+Runtime: (8s), IRQs: (229480), Inter-inq Delta_t: (39 us)
+Runtime: (9s), IRQs: (255161), Inter-inq Delta_t: (39 us)
+done microcontroller loop ...
+done main program
+--------------------
+here's the pio code that does this
+.program hsync
+
+.wrap_target
+
+wait_while_high:            ; wait while the pin is high, for it to go low
+    wait 0 pin 15           ; syntax: wait <polarity> <src> <index> ( rel )
+
+wait_while_low:             ; wait while the pin is low, for it to go high (trigger irq on rising edge)
+    wait 1 pin 15            ; syntax: wait <polarity> <src> <index>
+
+irq_stall:
+    irq wait 0              ; syntax: irq wait <irq_num> ( rel ) // set irq0 and wait for it to be cleared
+
+.wrap
+--------------------------------------
