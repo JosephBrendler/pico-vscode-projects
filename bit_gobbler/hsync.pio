@@ -2,26 +2,42 @@
 
 .wrap_target
 
-    wait pin 0
-    wait pin 1
-    irq 0
+wait_while_high:            ; wait while the pin is high, for it to go low
+    wait 0 pin 0            ; syntax: wait <polarity> <src> <index> ( rel )
+
+wait_while_low:             ; wait while the pin is low, for it to go high (trigger irq on rising edge)
+    wait 1 pin 0            ; syntax: wait <polarity> <src> <index>
+
+irq_stall:
+    irq wait 0              ; syntax: irq wait <irq_num> ( rel ) // set irq0 and wait for it to be cleared
 
 .wrap
 
-
 % c-sdk {
-// this is a raw helper function for use by the user which sets up the GPIO output, and configures
-// the SM to read input on a particular pin. syntax of functions used:
-//     int pio_sm_set_consecutive_pindirs(PIO pio, uint sm, uint pins_base, uint pin_count, bool is_out)
-//     static inline void sm_config_set_set_pins(pio_sm_config *c, uint set_base, uint set_count)
+#include "hardware/clocks.h"
+static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float div) {
 
-void hsync_program_init(PIO pio, uint sm, uint offset, uint pin) {
-   pio_gpio_init(pio, pin);
-   pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);  // set pin to input  
-   pio_sm_config c = hsync_program_get_default_config(offset);
-//   sm_config_set_set_pins(&c, pin, 1);   // set just one pin at pinbase (not needed for input)
-    sm_config_set_in_pins(&c, pin);                 // set pin to input 
-    pio_set_irq0_source_enabled(pio, pin, true);    // enable irq on pin
-   pio_sm_init(pio, sm, offset, &c);
+    pio_sm_config c = hsync_program_get_default_config(offset);
+
+    // Map this SM's IN pin group base to GPIO pin "pin"
+    sm_config_set_in_pins(&c, pin);
+
+    // Set the pin direction to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+        
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // set the state machine clock rate
+    sm_config_set_clkdiv(&c, div);
+
+    // bypass the input synchronizer for hsync gpio input pin
+    //pio->input_sync_bypass = (1u<<pin);
+    
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
 }
 %}
