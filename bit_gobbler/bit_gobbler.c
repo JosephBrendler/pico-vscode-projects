@@ -40,7 +40,7 @@ volatile uint64_t timeBetweenInterrupts = 0;
 volatile uint64_t lastInterruptTime = 0;
 
 
-// run five state machines - 4 on on PIO0 (hsync, vsync, rx_video_data, rx_intensity_data)
+// run 4 state machines - 4 on on PIO0 (hsync, vsync, rx_video_data, rx_intensity_data)
 static PIO pio_0 = pio0;
 
 void bit_gobble_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
@@ -62,9 +62,9 @@ void pio_irq_handler() {
     // Clear the interrupt flag
     if (pio_interrupt_get(pio_0, 0)) // returns TRUE if IRQ 0 is set (bit 8 in IRQ register)
     {
-        printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
+        //printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
         pio_interrupt_clear(pio_0, 0);
-        printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
+        //printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
         hsync_irq_flag = true;
     }
     else
@@ -133,39 +133,41 @@ void setup() {
  //   uint offset2 = pio_add_program(pio_0, &bit_gobbler_program);
  //   printf("  Loaded gobbler program at %d\n", offset2);
     //----- now claim the sms ----------------
-     // examine existing SMs on this PIO; nothing else should be useing them, but unclaim them if needed
-     for (uint i = 0; i < 4; i++)
-     {
-         if (pio_sm_is_claimed(pio_0, i))
-         {
-             // don't know why it's busy, but set it free
-             printf("  SM: %d is claimed, trying to unclaim ...", i);
-             pio_sm_unclaim(pio_0, i);
-             printf("  now unclaimed.\n");
-         }
-         else
-         {
-             printf("  checked SM: %d, (uncliamed)\n", i);
-         }
-     }
-     // now claim state macinges (sm0-2)
-     pio_sm_claim (pio_0, 0);
-     printf("  claimed sm0\n");
-     pio_sm_claim (pio_0, 1);
-     printf("  claimed sm1\n");
-     pio_sm_claim (pio_0, 2);
-     printf("  claimed sm2\n");
+    // examine existing SMs on this PIO; nothing else should be useing them, but unclaim them if needed
+    for (uint i = 0; i < 4; i++)
+    {
+        if (pio_sm_is_claimed(pio_0, i))
+        {
+            // don't know why it's busy, but set it free
+            printf("  SM: %d is claimed, trying to unclaim ...", i);
+            pio_sm_unclaim(pio_0, i);
+            printf("  now unclaimed.\n");
+        }
+        else
+        {
+            printf("  checked SM: %d, (uncliamed)\n", i);
+        }
+    }
+    // now claim state macinges (sm0-2)
+    pio_sm_claim (pio_0, 0);
+    printf("  claimed sm0\n");
+    pio_sm_claim (pio_0, 1);
+    printf("  claimed sm1\n");
+    pio_sm_claim (pio_0, 2);
+    printf("  claimed sm2\n");
+    pio_sm_claim (pio_0, 3);
+    printf("  claimed sm3\n");
 
 //    printf("  Gobbling bits from pin %d at %llu Hz\n", VIDEO_PIN, PIXEL_FREQ);
-printf("  System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-printf("  USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
-printf("  Pixel Clock Frequency is %d Hz\n", PIXEL_FREQ);
+printf("  System Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_sys));
+printf("  USB Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_usb));
+printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
 // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
 
 // calculate divider needed to get PIXEL_FREQ
     float sys_clock = (float)clock_get_hz(clk_sys);
     float div = sys_clock / PIXEL_FREQ;
-    printf("  calculated divider to generate PIXEL_FREQ: %.4f\n", div));
+    printf("  calculated divider to generate PIXEL_FREQ: %.4f\n", div);
 
     // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(HSYNC_PIN, false);
@@ -201,14 +203,14 @@ printf("  Pixel Clock Frequency is %d Hz\n", PIXEL_FREQ);
 }
 
 void loop() {
-    printf("Running microcontroller loop() function");
-    int count = 0;
-    while (count++ < 10) {
-        currentTime = time_us_64();
+    printf("Running microcontroller loop() function\n");
+    uint count = 0;
+    while (count < 10) {
         if (hsync_irq_flag)
         {
             // disable irqs while handling one
 //            irq_set_enabled(PIO_IRQ, false);      // don't use NVIC, just poll INTR in loop
+            currentTime = time_us_64();
             timeBetweenInterrupts = currentTime - lastInterruptTime;
             lastInterruptTime = currentTime;
             interrupt_count++;
@@ -217,13 +219,15 @@ void loop() {
 //            irq_set_enabled(PIO_IRQ, true);           // donnt use NVIC - just poll INTR in loop
         }
         if ( time_us_64() % 1000000 == 0 ) {
-            printf("Runtime: (%ds), IRQs: (%llu), Delta_t btw IRQs: (%llu us)\n", count ++, interrupt_count, timeBetweenInterrupts);
+            uint seconds = (uint)( time_us_64() / MHZ );
+            printf("Runtime: (%ds), IRQs: (%llu), Delta_t btw IRQs: (%llu us)\n", seconds, interrupt_count, timeBetweenInterrupts);
+            count++;
         }
-        if (!pio_sm_is_rx_fifo_empty(pio_0, sm2)) {
-            uint32_t data = pio_sm_get_blocking(pio_0, sm2);
-            printf(" Received hex: %x   binary: ", data);
-            print_binary(data);
-        }
+//        if (!pio_sm_is_rx_fifo_empty(pio_0, sm2)) {
+//            uint32_t data = pio_sm_get_blocking(pio_0, sm2);
+//            printf(" Received hex: %x   binary: ", data);
+//            print_binary(data);
+//        }
 //        sleep_ms(1000);
     }
 }
