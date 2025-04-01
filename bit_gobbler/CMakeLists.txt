@@ -63,6 +63,8 @@ target_include_directories(bit_gobbler PRIVATE
 target_link_libraries(bit_gobbler 
         hardware_dma
         hardware_pio
+        hardware_irq
+        hardware_gpio
         hardware_clocks
         )
 

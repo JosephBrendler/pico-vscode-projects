@@ -1,7 +1,12 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "pico/stdlib.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
+#include "hardware/irq.h"
+#include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
 // Data will be copied from src to dst
@@ -18,6 +23,9 @@ static uint VSYNC_PIN = 5;         // GPIO 5;  pin 11 (from inverter pin 4)
 static uint VIDEO_PIN = 2;         // GPIO 2;  pin 38 (from trimpot1 wiper)
 static uint INTENSITY_PIN = 3;     // GPIO 3;  pin 15 (from trimpot2 wiper)
 // GND(black) on pin 20; 3.3v (red) on pin 1 (for trim-pot v-divs and inverters)
+// for input gpio; set true for pullup | false for pulldown (one true if needed; else set both false)
+static bool PULL_UP = true;
+static bool PULL_DOWN = false;
 
 static uint sm0 = 0;
 static uint sm1 = 1;
@@ -73,6 +81,9 @@ void print_binary(uint32_t num) {
 }
 
 void setup() {
+    // disable irqs while dpomg setup
+    irq_set_enabled(PIO_IRQ, false);
+
     printf("Starting setup()\n");
 
     // Get a free channel, panic() if there are none
@@ -110,50 +121,83 @@ void setup() {
     // receive buffer (dst), so we can print it out from there.
     puts(dst);
 
+    //---- currently planning for 3 sms (load their programs here ----------------------
     // sm0 - generate Hsync interrupt IRQ0
     uint offset0 = pio_add_program(pio_0, &hsync_program);
     printf("  added &hsync_program and got offset0: %d\n", offset0);
-
-    // calculate divider needed to get PIXEL_FREQ
-    float sys_clock = (float)clock_get_hz(clk_sys);
-    float div = sys_clock / (PIXEL_FREQ);
-    // initailize pio hsync program with offset, pin, and div
-    // void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
-    hsync_program_init(pio_0, sm0, offset0, HSYNC_PIN, div);
-    printf("  configuring for clk_sys:  %.4f, PIXEL_FREQ: %.4f/n", sys_clock, PIXEL_FREQ);
-    printf("  Initialized (pio) hsync_program for sm0, offset0: %x hex, HSYNC_PIN: %d, and divider: %.4f\n", offset0, HSYNC_PIN, div);
 
     // sm1 - generate Vsync interrupt IRQ1
     // maybe something like hsync above
 
     // sm2 - read video bits into fifo
-    uint offset2 = pio_add_program(pio_0, &bit_gobbler_program);
-    printf("  Loaded gobbler program at %d\n", offset2);
+ //   uint offset2 = pio_add_program(pio_0, &bit_gobbler_program);
+ //   printf("  Loaded gobbler program at %d\n", offset2);
+    //----- now claim the sms ----------------
+     // examine existing SMs on this PIO; nothing else should be useing them, but unclaim them if needed
+     for (uint i = 0; i < 4; i++)
+     {
+         if (pio_sm_is_claimed(pio_0, i))
+         {
+             // don't know why it's busy, but set it free
+             printf("  SM: %d is claimed, trying to unclaim ...", i);
+             pio_sm_unclaim(pio_0, i);
+             printf("  now unclaimed.\n");
+         }
+         else
+         {
+             printf("  checked SM: %d, (uncliamed)\n", i);
+         }
+     }
+     // now claim state macinges (sm0-2)
+     pio_sm_claim (pio_0, 0);
+     printf("  claimed sm0\n");
+     pio_sm_claim (pio_0, 1);
+     printf("  claimed sm1\n");
+     pio_sm_claim (pio_0, 2);
+     printf("  claimed sm2\n");
 
-    // Write the number to the TX FIFO (blocking if full)
+//    printf("  Gobbling bits from pin %d at %llu Hz\n", VIDEO_PIN, PIXEL_FREQ);
+printf("  System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
+printf("  USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
+printf("  Pixel Clock Frequency is %d Hz\n", PIXEL_FREQ);
+// For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
+
+// calculate divider needed to get PIXEL_FREQ
+    float sys_clock = (float)clock_get_hz(clk_sys);
+    float div = sys_clock / PIXEL_FREQ;
+    printf("  calculated divider to generate PIXEL_FREQ: %.4f\n", div));
+
+    // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
+    gpio_set_dir(HSYNC_PIN, false);
+    char updown[] = "not set";
+    if (PULL_DOWN) { gpio_pull_down(HSYNC_PIN); sprintf(updown, "down"); }
+    if (PULL_UP) { gpio_pull_up(HSYNC_PIN); sprintf(updown, "up"); }
+    printf("  configured HSYNC_PIN: %d as input, with pullup/down: %s\n", HSYNC_PIN, updown);
+
+    // initailize pio hsync program with offset, pin, and div
+    // void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+    hsync_program_init(pio_0, sm0, offset0, HSYNC_PIN, div);
+    printf("  Initialized (pio) hsync_program for sm0, offset0: %x hex, HSYNC_PIN: %d, and divider: %.4f\n", offset0, HSYNC_PIN, div);
+
+     // Write the number to the TX FIFO (blocking if full)
     uint32_t scan_line_pixel_count = 640;
-    printf("  About to write scan_line_pixel_count: %d to sm tx fifo\n", scan_line_pixel_count);
-    pio_sm_put_blocking(pio_0, sm2, scan_line_pixel_count);
+//    printf("  About to write scan_line_pixel_count: %d to sm tx fifo\n", scan_line_pixel_count);
+ //   pio_sm_put_blocking(pio_0, sm2, scan_line_pixel_count);
 
     // initialize and start the statemachine
-    bit_gobble_forever(pio_0, sm2, offset2, VIDEO_PIN, PIXEL_FREQ);
-    printf("  Gobbler initialized on sm %d, running at %.4f\n", sm2, PIXEL_FREQ);
+//    bit_gobble_forever(pio_0, sm2, offset2, VIDEO_PIN, PIXEL_FREQ);
+//    printf("  Gobbler initialized on sm %d, running at %.4f\n", sm2, PIXEL_FREQ);
 
     // sm3 - read intensity bits into fifo
     // maybe something like bit_gobbler above
 
-    printf("  Gobbling bits from pin %d at %llu Hz\n", VIDEO_PIN, PIXEL_FREQ);
-    printf("  System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-    printf("  USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
-    // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
-
-    // Configure interrupt
+    // Configure interrupt (source, handler, then enable)
+    pio_set_irq0_source_enabled(pio_0, pis_interrupt0, true);
+    printf("  pio_set_irq0_source_enabled (IRQ flag) done for pio pis_interrupt0: %d\n", pis_interrupt0);
     irq_set_exclusive_handler(PIO_IRQ, pio_irq_handler);
     printf("  irq_set_exclusive_handler done for PIO-NVIC IRQ %d\n", PIO_IRQ);
     irq_set_enabled(PIO_IRQ, true);
     printf("  irq_set_enabled true for PIO-NVIC IRQ %d\n", PIO_IRQ);
-    pio_set_irq0_source_enabled(pio_0, pis_interrupt0, true);
-    printf("  pio_set_irq0_source_enabled (IRQ flag) done for pio pis_interrupt0: %d\n", pis_interrupt0);
 }
 
 void loop() {
@@ -180,7 +224,7 @@ void loop() {
             printf(" Received hex: %x   binary: ", data);
             print_binary(data);
         }
-        sleep_ms(1000);
+//        sleep_ms(1000);
     }
 }
 
