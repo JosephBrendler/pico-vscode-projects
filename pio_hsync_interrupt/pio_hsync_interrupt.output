@@ -86,3 +86,59 @@ Runtime: (8s), IRQs: (229385), Delta_t btw IRQs: (39 us)
 Runtime: (9s), IRQs: (255068), Delta_t btw IRQs: (38 us)
 done microcontroller loop ...
 back in main(); program complete
+
+//-------------- figured it out -----------------
+20250331 22:30
+
+made these changes to .pio program
+    // Map the state machine's SET pin group to one pin, namely the `pin`
+    // parameter to this function.
+    //sm_config_set_set_pins(&c, pin, 1);
+    // Set the jump pin for the state machine
+    //sm_config_set_jmp_pin (&c, pin);
+    // this is why program didn't work as initially expected -
+    //   I had sm_config_set_set_pins - but no instructions using SET IO mapping
+    //   I had sm_config_set_jmp_pin - but no "jmp pin" instruction
+    //   I had instructions for wait pin - but no sm_config_set_in_* to provide mapping
+
+    // Map this SM's IN pin group base to GPIO pin "pin"
+    // This will index pin "pin" (i.e. HSYNC_PIN = 15) as 0 (zero) and wrap
+    // (presumably, since _in_pin_base and _in_pins_count are not used, it wraps
+    // IN pin indexing at 31(index 16) and continues 0(17) and back to 14(31))
+    // API: sm_config_set_in_pins(pio_sm_config *c, uint in_base))
+    sm_config_set_in_pins(&c, pin);                      <---------------+
+                                                                         |
+    ------- also rewrote the asm part above to substitute 0 for 15 since | this sets mapping and 
+    0-based index now works.
+
+    ================ new output: ===========================
+    initialized stdio; starting main program
+starting setup ...
+  disabled interrupts for PIO_IRQ: 0 while running setup
+  assigning PIO and IRQ for pionum: 0
+  assigned PIO: 0, SM IRQ 0, mapped to NVIC PIO_IRQ (0/1): 7
+  loaded hsync_program and got offset: 29
+  now trying to claim an unused SM ...   claimed SM: 0
+  assigned SM_CLK_FREQ: 25000000.0000
+  div = ( clock_get_hz(clk_sys): 125000000.0000  / SM_CLK_FREQ: 25000000.0000 ) = div: 5.0000 
+  configured HSYNC_PIN: 15 as input, with pullup/down: up
+  initialized hsync_program on SM: 0, at offset 29, HSYNC_PIN: 15, and SM_CLK_FREQ: 25000000.00000
+  enabled irq0_source on pis_interrupt0: 8
+  irq_set_exclusive_handler done for PIO_IRQ: 7, &hsync_pio_isr
+  irq_set_enabled for PIO_IRQ 7
+Done setup
+
+back in main()
+running microcontroller loop ...
+Runtime: (0s), IRQs: (23912), Delta_t btw IRQs: (38 us)
+Runtime: (1s), IRQs: (49596), Delta_t btw IRQs: (39 us)
+Runtime: (2s), IRQs: (75282), Delta_t btw IRQs: (38 us)
+Runtime: (3s), IRQs: (100967), Delta_t btw IRQs: (39 us)
+Runtime: (4s), IRQs: (126650), Delta_t btw IRQs: (39 us)
+Runtime: (5s), IRQs: (152334), Delta_t btw IRQs: (38 us)
+Runtime: (6s), IRQs: (178017), Delta_t btw IRQs: (38 us)
+Runtime: (7s), IRQs: (203700), Delta_t btw IRQs: (39 us)
+Runtime: (8s), IRQs: (229384), Delta_t btw IRQs: (39 us)
+Runtime: (9s), IRQs: (255068), Delta_t btw IRQs: (39 us)
+done microcontroller loop ...
+back in main(); program complete

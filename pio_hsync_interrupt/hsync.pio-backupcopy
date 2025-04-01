@@ -3,10 +3,10 @@
 .wrap_target
 
 wait_while_high:            ; wait while the pin is high, for it to go low
-    wait 0 pin 0            ; syntax: wait <polarity> <src> <index> ( rel )
+    wait 0 pin 15           ; syntax: wait <polarity> <src> <index> ( rel )
 
 wait_while_low:             ; wait while the pin is low, for it to go high (trigger irq on rising edge)
-    wait 1 pin 0            ; syntax: wait <polarity> <src> <index>
+    wait 1 pin 15            ; syntax: wait <polarity> <src> <index>
 
 irq_stall:
     irq wait 0              ; syntax: irq wait <irq_num> ( rel ) // set irq0 and wait for it to be cleared
@@ -21,23 +21,13 @@ static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, f
 
     // Map the state machine's SET pin group to one pin, namely the `pin`
     // parameter to this function.
-    //sm_config_set_set_pins(&c, pin, 1);
-    // Set the jump pin for the state machine
-    //sm_config_set_jmp_pin (&c, pin);
-    // this is why program didn't work as initially expected -
-    //   I had sm_config_set_set_pins - but no instructions using SET IO mapping
-    //   I had sm_config_set_jmp_pin - but no "jmp pin" instruction
-    //   I had instructions for wait pin - but no sm_config_set_in_* to provide mapping
-
-    // Map this SM's IN pin group base to GPIO pin "pin"
-    // This will index pin "pin" (i.e. HSYNC_PIN = 15) as 0 (zero) and wrap
-    // (presumably, since _in_pin_base and _in_pins_count are not used, it wraps
-    // IN pin indexing at 31(index 16) and continues 0(17) and back to 14(31))
-    // API: sm_config_set_in_pins(pio_sm_config *c, uint in_base))
-    sm_config_set_in_pins(&c, pin);
-
+    sm_config_set_set_pins(&c, pin, 1);
+    
     // Set the pin direction to input at the PIO
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+
+    // Set the jump pin for the state machine
+    sm_config_set_jmp_pin (&c, pin);
         
     // Set this pin's GPIO function (connect PIO to the pad)
     pio_gpio_init(pio, pin);
