@@ -43,7 +43,7 @@ pico_set_program_version(bit_gobbler "0.1")
 # Generate PIO header
 pico_generate_pio_header(bit_gobbler
 	${CMAKE_CURRENT_LIST_DIR}/bit_gobbler.pio
-	${CMAKE_CURRENT_LIST_DIR}/hsync.pio
+	${CMAKE_CURRENT_LIST_DIR}/sync.pio
 )
 
 # Modify the below lines to enable/disable output over UART/USB

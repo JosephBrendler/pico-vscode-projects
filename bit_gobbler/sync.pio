@@ -1,4 +1,4 @@
-.program hsync
+.program sync
 
 .wrap_target
 
@@ -9,15 +9,15 @@ wait_while_low:             ; wait while the pin is low, for it to go high (trig
     wait 1 pin 0            ; syntax: wait <polarity> <src> <index>
 
 irq_stall:
-    irq wait 0              ; syntax: irq wait <irq_num> ( rel ) // set irq0 and wait for it to be cleared
+    irq wait 0 rel          ; syntax: irq wait <irq_num> ( rel ) // sm0 set flag irq0 (sm1 irq1), and wait for it to be cleared
 
 .wrap
 
 % c-sdk {
 #include "hardware/clocks.h"
-static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float div) {
+static inline void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div) {
 
-    pio_sm_config c = hsync_program_get_default_config(offset);
+    pio_sm_config c = sync_program_get_default_config(offset);
 
     // Map this SM's IN pin group base to GPIO pin "pin"
     sm_config_set_in_pins(&c, pin);
@@ -31,7 +31,7 @@ static inline void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, f
     // set the state machine clock rate
     sm_config_set_clkdiv(&c, div);
 
-    // bypass the input synchronizer for hsync gpio input pin
+    // bypass the input synchronizer for sync gpio input pin
     //pio->input_sync_bypass = (1u<<pin);
     
     // Load our configuration, and jump to the start of the program

@@ -14,9 +14,12 @@ const char src[] = "Hello, world! (from DMA)";
 char dst[count_of(src)];
 
 #include "./bit_gobbler.pio.h"
-#include "./hsync.pio.h"
+#include "./sync.pio.h"
 
-#define PIO_IRQ PIO0_IRQ_0
+#define PIO_IRQ0 PIO0_IRQ_0
+#define PIO_IRQ1 PIO0_IRQ_1
+
+static uint32_t MY_SYS_CLK_HZ  = 250 * MHZ;
 
 static uint HSYNC_PIN = 15;        // GPIO 15; pin 35 (from inverter pin 2)
 static uint VSYNC_PIN = 5;         // GPIO 5;  pin 11 (from inverter pin 4)
@@ -26,6 +29,7 @@ static uint INTENSITY_PIN = 3;     // GPIO 3;  pin 15 (from trimpot2 wiper)
 // for input gpio; set true for pullup | false for pulldown (one true if needed; else set both false)
 static bool PULL_UP = true;
 static bool PULL_DOWN = false;
+static char updown[] = "not set";
 
 static uint sm0 = 0;
 static uint sm1 = 1;
@@ -33,11 +37,17 @@ static uint sm2 = 2;
 static uint pio_irq_num = 0;
 static float PIXEL_FREQ = (25 * MHZ);
 
-volatile bool hsync_irq_flag = false;
-volatile uint64_t interrupt_count = 0;
 volatile uint64_t currentTime = 0;
-volatile uint64_t timeBetweenInterrupts = 0;
-volatile uint64_t lastInterruptTime = 0;
+
+volatile bool hsync_irq_flag = false;
+volatile uint64_t hsync_interrupt_count = 0;
+volatile uint64_t timeBetweenHsyncInterrupts = 0;
+volatile uint64_t lastHsyncInterruptTime = 0;
+
+volatile bool vsync_irq_flag = false;
+volatile uint64_t vsync_interrupt_count = 0;
+volatile uint64_t timeBetweenVsyncInterrupts = 0;
+volatile uint64_t lastVsyncInterruptTime = 0;
 
 
 // run 4 state machines - 4 on on PIO0 (hsync, vsync, rx_video_data, rx_intensity_data)
@@ -58,7 +68,7 @@ void bit_gobble_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
 // currently just getting one (640 pixel) line of video scan, between HSYNC pulses
 // need to add 400 scan lines, between VSYNC pulses
 
-void pio_irq_handler() {
+void pio_irq0_handler() {
     // Clear the interrupt flag
     if (pio_interrupt_get(pio_0, 0)) // returns TRUE if IRQ 0 is set (bit 8 in IRQ register)
     {
@@ -66,6 +76,21 @@ void pio_irq_handler() {
         pio_interrupt_clear(pio_0, 0);
         //printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
         hsync_irq_flag = true;
+    }
+    else
+    {
+        printf("Error: got wrong interrupt signal [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
+    }
+}
+
+void pio_irq1_handler() {
+    // Clear the interrupt flag
+    if (pio_interrupt_get(pio_0, 1)) // returns TRUE if IRQ 0 is set (bit 8 in IRQ register)
+    {
+        //printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
+        pio_interrupt_clear(pio_0, 1);
+        //printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
+        vsync_irq_flag = true;
     }
     else
     {
@@ -82,9 +107,10 @@ void print_binary(uint32_t num) {
 
 void setup() {
     // disable irqs while dpomg setup
-    irq_set_enabled(PIO_IRQ, false);
+    irq_set_enabled(PIO_IRQ0, false);   // hsync
+    irq_set_enabled(PIO_IRQ1, false);   // vsync
 
-    printf("Starting setup()\n");
+    printf("Starting program setup()\n");
 
     // Get a free channel, panic() if there are none
     int chan = dma_claim_unused_channel(true);
@@ -123,11 +149,11 @@ void setup() {
 
     //---- currently planning for 3 sms (load their programs here ----------------------
     // sm0 - generate Hsync interrupt IRQ0
-    uint offset0 = pio_add_program(pio_0, &hsync_program);
-    printf("  added &hsync_program and got offset0: %d\n", offset0);
-
     // sm1 - generate Vsync interrupt IRQ1
-    // maybe something like hsync above
+
+    // load program for both sm0 and sm1 (H/V_sync interrupts)
+    uint offset0 = pio_add_program(pio_0, &sync_program);
+    printf("  loaded &sync_program for sm0 and sm1, and got offset0: %d\n", offset0);
 
     // sm2 - read video bits into fifo
  //   uint offset2 = pio_add_program(pio_0, &bit_gobbler_program);
@@ -145,7 +171,7 @@ void setup() {
         }
         else
         {
-            printf("  checked SM: %d, (uncliamed)\n", i);
+            printf("  checked SM: %d, (unclaimed)\n", i);
         }
     }
     // now claim state macinges (sm0-2)
@@ -171,35 +197,51 @@ printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
 
     // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(HSYNC_PIN, false);
-    char updown[] = "not set";
+    sprintf(updown, "not set");
     if (PULL_DOWN) { gpio_pull_down(HSYNC_PIN); sprintf(updown, "down"); }
     if (PULL_UP) { gpio_pull_up(HSYNC_PIN); sprintf(updown, "up"); }
     printf("  configured HSYNC_PIN: %d as input, with pullup/down: %s\n", HSYNC_PIN, updown);
 
-    // initailize pio hsync program with offset, pin, and div
-    // void hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
-    hsync_program_init(pio_0, sm0, offset0, HSYNC_PIN, div);
-    printf("  Initialized (pio) hsync_program for sm0, offset0: %x hex, HSYNC_PIN: %d, and divider: %.4f\n", offset0, HSYNC_PIN, div);
+    // initailize sm0 sync program with offset, hsync pin, and div
+    // void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+    sync_program_init(pio_0, sm0, offset0, HSYNC_PIN, div);
+    printf("  Initialized (pio) sync_program for sm0, offset0: %x hex, HSYNC_PIN: %d, and divider: %.4f\n", offset0, HSYNC_PIN, div);
 
-     // Write the number to the TX FIFO (blocking if full)
+    // set VSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
+    gpio_set_dir(VSYNC_PIN, false);
+    sprintf(updown, "not set");
+    if (PULL_DOWN) { gpio_pull_down(VSYNC_PIN); sprintf(updown, "down"); }
+    if (PULL_UP) { gpio_pull_up(VSYNC_PIN); sprintf(updown, "up"); }
+    printf("  configured VSYNC_PIN: %d as input, with pullup/down: %s\n", VSYNC_PIN, updown);
+
+    // initailize sm1 sync program with offset, vsync pin, and div
+    // void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+    sync_program_init(pio_0, sm1, offset0, VSYNC_PIN, div);
+    printf("  Initialized (pio) sync_program for sm1, offset0: %x hex, VSYNC_PIN: %d, and divider: %.4f\n", offset0, VSYNC_PIN, div);
+
+    // Write the number to the TX FIFO (blocking if full)
     uint32_t scan_line_pixel_count = 640;
 //    printf("  About to write scan_line_pixel_count: %d to sm tx fifo\n", scan_line_pixel_count);
  //   pio_sm_put_blocking(pio_0, sm2, scan_line_pixel_count);
 
-    // initialize and start the statemachine
-//    bit_gobble_forever(pio_0, sm2, offset2, VIDEO_PIN, PIXEL_FREQ);
-//    printf("  Gobbler initialized on sm %d, running at %.4f\n", sm2, PIXEL_FREQ);
-
     // sm3 - read intensity bits into fifo
     // maybe something like bit_gobbler above
 
-    // Configure interrupt (source, handler, then enable)
+    // Configure HSYNC interrupt (source, handler, then enable)
     pio_set_irq0_source_enabled(pio_0, pis_interrupt0, true);
     printf("  pio_set_irq0_source_enabled (IRQ flag) done for pio pis_interrupt0: %d\n", pis_interrupt0);
-    irq_set_exclusive_handler(PIO_IRQ, pio_irq_handler);
-    printf("  irq_set_exclusive_handler done for PIO-NVIC IRQ %d\n", PIO_IRQ);
-    irq_set_enabled(PIO_IRQ, true);
-    printf("  irq_set_enabled true for PIO-NVIC IRQ %d\n", PIO_IRQ);
+    irq_set_exclusive_handler(PIO_IRQ0, pio_irq0_handler);
+    printf("  irq_set_exclusive_handler done for PIO-NVIC IRQ %d\n", PIO_IRQ0);
+    irq_set_enabled(PIO_IRQ0, true);
+    printf("  irq_set_enabled true for PIO-NVIC IRQ %d\n", PIO_IRQ0);
+
+    // Configure VSYNC interrupt (source, handler, then enable)
+    pio_set_irq1_source_enabled(pio_0, pis_interrupt1, true);
+    printf("  pio_set_irq1_source_enabled (IRQ flag) done for pio pis_interrupt1: %d\n", pis_interrupt1);
+    irq_set_exclusive_handler(PIO_IRQ1, pio_irq1_handler);
+    printf("  irq_set_exclusive_handler done for PIO-NVIC IRQ %d\n", PIO_IRQ1);
+    irq_set_enabled(PIO_IRQ1, true);
+    printf("  irq_set_enabled true for PIO-NVIC IRQ %d\n", PIO_IRQ1);
 }
 
 void loop() {
@@ -209,21 +251,36 @@ void loop() {
         if (hsync_irq_flag)
         {
             // disable irqs while handling one
-//            irq_set_enabled(PIO_IRQ, false);      // don't use NVIC, just poll INTR in loop
+//            irq_set_enabled(PIO_IRQ0, false);      // don't use NVIC, just poll INTR in loop
             currentTime = time_us_64();
-            timeBetweenInterrupts = currentTime - lastInterruptTime;
-            lastInterruptTime = currentTime;
-            interrupt_count++;
+            timeBetweenHsyncInterrupts = currentTime - lastHsyncInterruptTime;
+            lastHsyncInterruptTime = currentTime;
+            hsync_interrupt_count++;
             hsync_irq_flag = false;       // don't need this if not using NVIC IRQ
             // re-enable irqs after handling one    
-//            irq_set_enabled(PIO_IRQ, true);           // donnt use NVIC - just poll INTR in loop
+//            irq_set_enabled(PIO_IRQ0, true);           // donnt use NVIC - just poll INTR in loop
+        }
+        if (vsync_irq_flag)
+        {
+            // disable irqs while handling one
+//            irq_set_enabled(PIO_IRQ1, false);      // don't use NVIC, just poll INTR in loop
+            currentTime = time_us_64();
+            timeBetweenVsyncInterrupts = currentTime - lastVsyncInterruptTime;
+            lastVsyncInterruptTime = currentTime;
+            vsync_interrupt_count++;
+            vsync_irq_flag = false;       // don't need this if not using NVIC IRQ
+            // re-enable irqs after handling one    
+//            irq_set_enabled(PIO_IRQ1, true);           // donnt use NVIC - just poll INTR in loop
         }
         if ( time_us_64() % 1000000 == 0 ) {
             uint seconds = (uint)( time_us_64() / MHZ );
-            printf("Runtime: (%ds), IRQs: (%llu), Delta_t btw IRQs: (%llu us)\n", seconds, interrupt_count, timeBetweenInterrupts);
+            printf("Runtime: (%ds)\n", seconds);
+            printf("    H_IRQs: (%llu), Delta_t btw H_IRQs: (%llu us)\n",
+                hsync_interrupt_count, timeBetweenHsyncInterrupts);
+            printf("    V_IRQs: (%llu), Delta_t btw V_IRQs: (%llu us)\n",
+                vsync_interrupt_count, timeBetweenVsyncInterrupts);
             count++;
-        }
-//        if (!pio_sm_is_rx_fifo_empty(pio_0, sm2)) {
+        }//        if (!pio_sm_is_rx_fifo_empty(pio_0, sm2)) {
 //            uint32_t data = pio_sm_get_blocking(pio_0, sm2);
 //            printf(" Received hex: %x   binary: ", data);
 //            print_binary(data);
@@ -234,7 +291,13 @@ void loop() {
 
 int main()
 {
+
+    // setup overclocking
+    set_sys_clock_hz(MY_SYS_CLK_HZ, true);
+    
     stdio_init_all();
+    sleep_ms(5000);     // give me time to turn on minicom monitor
+    
     printf("Main() about to run setup()\n");
     setup();
     printf("Back in main(), about to run loop()\n");
