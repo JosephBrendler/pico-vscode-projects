@@ -28,39 +28,39 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(bit_gobbler C CXX ASM)
+project(video_sampler C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(bit_gobbler bit_gobbler.c )
+add_executable(video_sampler video_sampler.c )
 
-pico_set_program_name(bit_gobbler "bit_gobbler")
-pico_set_program_version(bit_gobbler "0.1")
+pico_set_program_name(video_sampler "video_sampler")
+pico_set_program_version(video_sampler "0.1")
 
 # Generate PIO header
-pico_generate_pio_header(bit_gobbler
-	${CMAKE_CURRENT_LIST_DIR}/bit_gobbler.pio
+pico_generate_pio_header(video_sampler
+	${CMAKE_CURRENT_LIST_DIR}/video_sampler.pio
 	${CMAKE_CURRENT_LIST_DIR}/sync.pio
 )
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(bit_gobbler 1)
-pico_enable_stdio_usb(bit_gobbler 0)
+pico_enable_stdio_uart(video_sampler 1)
+pico_enable_stdio_usb(video_sampler 0)
 
 # Add the standard library to the build
-target_link_libraries(bit_gobbler
+target_link_libraries(video_sampler
         pico_stdlib)
 
 # Add the standard include files to the build
-target_include_directories(bit_gobbler PRIVATE
+target_include_directories(video_sampler PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
 
 # Add any user requested libraries
-target_link_libraries(bit_gobbler 
+target_link_libraries(video_sampler 
         hardware_dma
         hardware_pio
         hardware_irq
@@ -68,5 +68,5 @@ target_link_libraries(bit_gobbler
         hardware_clocks
         )
 
-pico_add_extra_outputs(bit_gobbler)
+pico_add_extra_outputs(video_sampler)
 

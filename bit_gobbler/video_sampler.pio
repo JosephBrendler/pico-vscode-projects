@@ -1,4 +1,4 @@
-.program bit_gobbler
+.program video_sampler
     pull block          ; get value
 
 .wrap_target
@@ -20,8 +20,8 @@ backporch:
 
 
 % c-sdk {
-static inline void bit_gobbler_program_init(PIO pio, uint sm, uint offset, uint pin) {
-    pio_sm_config c = bit_gobbler_program_get_default_config(offset);
+static inline void video_sampler_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = video_sampler_program_get_default_config(offset);
 
     // Set the IN base pin to the provided `pin` parameter. This is the video pin
     // and the next pin is the intensity pin

@@ -1,0 +1,43 @@
+.program sync
+
+.wrap_target
+
+wait_while_high:            ; wait while the pin is high, for it to go low
+    wait 0 pin 0            ; syntax: wait <polarity> <src> <index> ( rel )
+
+wait_while_low:             ; wait while the pin is low, for it to go high (trigger irq on rising edge)
+    wait 1 pin 0            ; syntax: wait <polarity> <src> <index>
+
+irq_stall:
+    irq wait 0 rel          ; syntax: irq wait <irq_num> ( rel ) // sm0 set flag irq0 (sm1 irq1), and wait for it to be cleared
+
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+static inline void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div) {
+
+    pio_sm_config c = sync_program_get_default_config(offset);
+
+    // Map this SM's IN pin group base to GPIO pin "pin"
+    sm_config_set_in_pins(&c, pin);
+
+    // Set the pin direction to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+        
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // set the state machine clock rate
+    sm_config_set_clkdiv(&c, div);
+
+    // bypass the input synchronizer for sync gpio input pin
+    //pio->input_sync_bypass = (1u<<pin);
+    
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
