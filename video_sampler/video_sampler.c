@@ -13,7 +13,7 @@
 const char src[] = "Hello, world! (from DMA)";
 char dst[count_of(src)];
 
-#include "./video_sampler.pio.h"
+#include "./sample.pio.h"
 #include "./sync.pio.h"
 
 #define PIO_IRQ0 PIO0_IRQ_0
@@ -22,6 +22,15 @@ char dst[count_of(src)];
 #define START_DELAY 5   // seconds (give time to connect monitor)
 
 static uint32_t MY_SYS_CLK_HZ  = 250 * MHZ;
+// this system freq (overclocked) is set by assignment at the top of
+//   main(){ //prior to stdio_init_all() } [botom of this file]
+//static float PIXEL_FREQ = (25 * MHZ);
+// set pixel clock freq for 800 x Hsync freq x 3 for over-sampling
+// Hsync freq (1/38us = 21,315.789 Hz) x 3 x 800 = 63,157,893.6  Hz (63.1578936 MHZ)
+static float PIXEL_FREQ = (63.1578936 * MHZ);
+
+static uint32_t activezone_scan_line_pixel_count = 640;
+static uint32_t activezone_scan_line_count = 400;
 
 static uint HSYNC_PIN = 15;        // GPIO 15; pin 35 (from inverter pin 2)
 static uint VSYNC_PIN = 5;         // GPIO 5;  pin 11 (from inverter pin 4)
@@ -33,11 +42,11 @@ static bool PULL_UP = true;
 static bool PULL_DOWN = false;
 static char updown[] = "not set";
 
-static uint sm0 = 0;
-static uint sm1 = 1;
-static uint sm2 = 2;
+static uint hsync_sm = 0;
+static uint vsync_sm = 1;
+static uint video_sm = 2;
+static uint intensity_sm = 3;
 static uint pio_irq_num = 0;
-static float PIXEL_FREQ = (25 * MHZ);
 
 volatile uint64_t currentTime = 0;
 
@@ -55,17 +64,9 @@ volatile uint64_t lastVsyncInterruptTime = 0;
 // run 4 state machines - 4 on on PIO0 (hsync, vsync, rx_video_data, rx_intensity_data)
 static PIO pio_0 = pio0;
 
-void bit_gobble_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
-    video_sampler_program_init(pio, sm, offset, pin);
-    pio_sm_set_enabled(pio, sm, true);
 
-    printf("Gobbling data from pin %d at %d Hz\n", pin, freq);
 
-    // PIO counter program takes 3 more cycles in total than we pass as
-    // input (wait for n + 1; mov; jmp)
-//    pio->txf[sm] = (125000000 / (2 * freq)) - 3;
-    pio->txf[sm] = ((133 * MHZ) / (2 * freq)) - 3;
-}
+
 
 // currently just getting one (640 pixel) line of video scan, between HSYNC pulses
 // need to add 400 scan lines, between VSYNC pulses
@@ -118,6 +119,7 @@ void setup() {
     int chan = dma_claim_unused_channel(true);
     printf("  claimed dma channel: %d\n", chan);
 
+    //-----[ set up DMA ]----------------------------------
     // 8 bit transfers. Both read and write address increment after each
     // transfer (each pointing to a location in src or dst respectively).
     // No DREQ is selected, so the DMA transfers as fast as it can.
@@ -149,53 +151,50 @@ void setup() {
     // receive buffer (dst), so we can print it out from there.
     puts(dst);
 
-    //---- currently planning for 3 sms (load their programs here ----------------------
-    // sm0 - generate Hsync interrupt IRQ0
-    // sm1 - generate Vsync interrupt IRQ1
+    //-----[ set up 4 x sm ]--------------------------------------------
+    // hsync_sm - generate Hsync interrupt IRQ0
+    // vsync_sm - generate Vsync interrupt IRQ1
+    // video_sm - video bit sampler (bit 1 of 2-bit color0)
+    // intensity_sm - intensity bit sampler (bit 2 of 2-bit color0)
 
-    // load program for both sm0 and sm1 (H/V_sync interrupts)
+    // load program for both hsync_sm and vsync_sm (H/V_sync interrupts)
     uint offset0 = pio_add_program(pio_0, &sync_program);
-    printf("  loaded &sync_program for sm0 and sm1, and got offset0: %d\n", offset0);
+    printf("  loaded &sync_program for hsync_sm and vsync_sm, and got offset0: %d\n", offset0);
 
-    // sm2 - read video bits into fifo
- //   uint offset2 = pio_add_program(pio_0, &video_sampler_program);
- //   printf("  Loaded gobbler program at %d\n", offset2);
-    //----- now claim the sms ----------------
+    // load program for both video_sm and intensity_sm (video/intensity bit samplers)
+    uint offset1 = pio_add_program(pio_0, &sample_program);
+    printf("  loaded &sample_program for video_sm and intensity_sm, and got offset1: %d\n", offset1);
+
     // examine existing SMs on this PIO; nothing else should be useing them, but unclaim them if needed
     for (uint i = 0; i < 4; i++)
     {
         if (pio_sm_is_claimed(pio_0, i))
         {
             // don't know why it's busy, but set it free
-            printf("  SM: %d is claimed, trying to unclaim ...", i);
+            printf("  checked SM: %d, (already claimed), fixing...", i);
             pio_sm_unclaim(pio_0, i);
-            printf("  now unclaimed.\n");
+            printf(" (unclaimed)");
+            pio_sm_claim (pio_0, i);
+            printf(" (properly claimed)\n");
         }
         else
         {
-            printf("  checked SM: %d, (unclaimed)\n", i);
+            printf("  checked SM: %d, (unclaimed)", i);
+            pio_sm_claim (pio_0, i);
+            printf(" (properly claimed)\n");
         }
     }
-    // now claim state macinges (sm0-2)
-    pio_sm_claim (pio_0, 0);
-    printf("  claimed sm0\n");
-    pio_sm_claim (pio_0, 1);
-    printf("  claimed sm1\n");
-    pio_sm_claim (pio_0, 2);
-    printf("  claimed sm2\n");
-    pio_sm_claim (pio_0, 3);
-    printf("  claimed sm3\n");
 
-//    printf("  Gobbling bits from pin %d at %llu Hz\n", VIDEO_PIN, PIXEL_FREQ);
-printf("  System Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_sys));
-printf("  USB Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_usb));
-printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
-// For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
+    //    printf("  Gobbling bits from pin %d at %llu Hz\n", VIDEO_PIN, PIXEL_FREQ);
+    printf("  System Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_sys));
+    printf("  USB Clock Frequency is %.3f Hz\n", (float)clock_get_hz(clk_usb));
+    printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
+    // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
 
-// calculate divider needed to get PIXEL_FREQ
+    // calculate divider needed to get PIXEL_FREQ
     float sys_clock = (float)clock_get_hz(clk_sys);
     float div = sys_clock / PIXEL_FREQ;
-    printf("  calculated divider to generate PIXEL_FREQ: %.4f\n", div);
+    printf("  calculated divider to generate PIXEL_FREQ: %.8f\n", div);
 
     // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(HSYNC_PIN, false);
@@ -204,10 +203,10 @@ printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
     if (PULL_UP) { gpio_pull_up(HSYNC_PIN); sprintf(updown, "up"); }
     printf("  configured HSYNC_PIN: %d as input, with pullup/down: %s\n", HSYNC_PIN, updown);
 
-    // initailize sm0 sync program with offset, hsync pin, and div
+    // initailize hsync_sm sync program with offset, hsync pin, and div
     // void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
-    sync_program_init(pio_0, sm0, offset0, HSYNC_PIN, div);
-    printf("  Initialized (pio) sync_program for sm0, offset0: %x hex, HSYNC_PIN: %d, and divider: %.4f\n", offset0, HSYNC_PIN, div);
+    sync_program_init(pio_0, hsync_sm, offset0, HSYNC_PIN, div);
+    printf("  Initialized (pio) sync_program for hsync_sm, offset0: %x hex, HSYNC_PIN: %d, and divider: %.8f\n", offset0, HSYNC_PIN, div);
 
     // set VSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(VSYNC_PIN, false);
@@ -216,18 +215,45 @@ printf("  Pixel Clock Frequency is %.3f Hz\n", PIXEL_FREQ);
     if (PULL_UP) { gpio_pull_up(VSYNC_PIN); sprintf(updown, "up"); }
     printf("  configured VSYNC_PIN: %d as input, with pullup/down: %s\n", VSYNC_PIN, updown);
 
-    // initailize sm1 sync program with offset, vsync pin, and div
+    // initailize vsync_sm sync program with offset, vsync pin, and div
     // void sync_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
-    sync_program_init(pio_0, sm1, offset0, VSYNC_PIN, div);
-    printf("  Initialized (pio) sync_program for sm1, offset0: %x hex, VSYNC_PIN: %d, and divider: %.4f\n", offset0, VSYNC_PIN, div);
+    sync_program_init(pio_0, vsync_sm, offset0, VSYNC_PIN, div);
+    printf("  Initialized (pio) sync_program for vsync_sm, offset0: %x hex, VSYNC_PIN: %d, and divider: %.8f\n", offset0, VSYNC_PIN, div);
 
-    // Write the number to the TX FIFO (blocking if full)
-    uint32_t scan_line_pixel_count = 640;
-//    printf("  About to write scan_line_pixel_count: %d to sm tx fifo\n", scan_line_pixel_count);
- //   pio_sm_put_blocking(pio_0, sm2, scan_line_pixel_count);
+    // set VIDEO_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
+    gpio_set_dir(VIDEO_PIN, false);
+    sprintf(updown, "not set");
+    if (PULL_DOWN) { gpio_pull_down(VIDEO_PIN); sprintf(updown, "down"); }
+    if (PULL_UP) { gpio_pull_up(VIDEO_PIN); sprintf(updown, "up"); }
+    printf("  configured VIDEO_PIN: %d as input, with pullup/down: %s\n", VIDEO_PIN, updown);
 
-    // sm3 - read intensity bits into fifo
-    // maybe something like video_sampler above
+    // initailize video_sm sample program with offset, video pin, and div
+    // void sample_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+    sample_program_init(pio_0, video_sm, offset1, VIDEO_PIN, div);
+    printf("  Initialized (pio) sample_program for video_sm, offset1: %x hex, VIDEO_PIN: %d, and divider: %.8f\n", offset1, VIDEO_PIN, div);
+
+    // set INTENSITY_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
+    gpio_set_dir(INTENSITY_PIN, false);
+    sprintf(updown, "not set");
+    if (PULL_DOWN) { gpio_pull_down(INTENSITY_PIN); sprintf(updown, "down"); }
+    if (PULL_UP) { gpio_pull_up(INTENSITY_PIN); sprintf(updown, "up"); }
+    printf("  configured INTENSITY_PIN: %d as input, with pullup/down: %s\n", INTENSITY_PIN, updown);
+
+    // initailize intensity_sm sample program with offset, intensity pin, and div
+    // void sample_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+    sample_program_init(pio_0, intensity_sm, offset1, INTENSITY_PIN, div);
+    printf("  Initialized (pio) sample_program for intensity_sm, offset1: %x hex, INTENSITY_PIN: %d, and divider: %.8f\n", offset1, INTENSITY_PIN, div);
+
+    // Write to the TX FIFO (blocking if full) the frame sizes for both video_sm & intensity_sm
+    // (this is only done once; sm's read once prior to wrap_target)
+    pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_pixel_count);
+    pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_count);
+    printf("  filled video_sm tx_fifo with frame sizes (%d x %d)\n", 
+        activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);
+    pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_pixel_count);
+    pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_count);
+    printf("  filled intensity_sm tx_fifo with frame sizes (%d x %d)\n", 
+        activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);        
 
     // Configure HSYNC interrupt (source, handler, then enable)
     pio_set_irq0_source_enabled(pio_0, pis_interrupt0, true);
@@ -282,8 +308,10 @@ void loop() {
             printf("    V_IRQs: (%llu), Delta_t btw V_IRQs: (%llu us)\n",
                 vsync_interrupt_count, timeBetweenVsyncInterrupts);
             count++;
-        }//        if (!pio_sm_is_rx_fifo_empty(pio_0, sm2)) {
-//            uint32_t data = pio_sm_get_blocking(pio_0, sm2);
+        }
+        
+//        if (!pio_sm_is_rx_fifo_empty(pio_0, video_sm)) {
+//            uint32_t data = pio_sm_get_blocking(pio_0, video_sm);
 //            printf(" Received hex: %x   binary: ", data);
 //            print_binary(data);
 //        }

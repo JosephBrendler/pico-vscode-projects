@@ -42,7 +42,7 @@ pico_set_program_version(video_sampler "0.1")
 
 # Generate PIO header
 pico_generate_pio_header(video_sampler
-	${CMAKE_CURRENT_LIST_DIR}/video_sampler.pio
+	${CMAKE_CURRENT_LIST_DIR}/sample.pio
 	${CMAKE_CURRENT_LIST_DIR}/sync.pio
 )
 

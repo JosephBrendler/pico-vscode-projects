@@ -1,0 +1,62 @@
+; sample.pio  -- bit sampling primitive for video_sampler
+; Joe Brendler   21 Apr 2025
+;
+
+.program sample
+
+pull block 					; Pull hcount (640)(pixels in active zone) from FIFO to OSR (only once)
+mov x, osr 					; Copy value from OSR to x scratch register
+pull block 					; Pull vcount (400)(lines in active zone) from FIFO to OSR (only once)
+mov y, osr 					; Copy value from OSR to y scratch register
+
+.wrap_target
+
+vsync:                      ; start a frame
+    wait 1 irq 0            ; wait for hsync (1 blank front porch line)
+    wait 1 irq 0            ; wait for hsync (1 blank front porch line)
+    wait 1 irq 0            ; wait for end of vertical back porch
+
+hsync:
+    nop [5]                   ; wait for end of horizontal back porch
+activezone:                 ; read 640 pixels
+    in pins, 1              ; read 1 bit (auto-push to rx fifo)
+    jmp x-- activezone      ; keep reading active zone pixels if x>0
+
+; horizontal front porch
+    wait 1 irq 0            ; wait for irq 0 signalling end of next hsync pulse
+    jmp y-- hsync           ; keep reading active zone lines if y>0
+
+; vertical front porch
+    wait 1 irq 1            ; wait for irq 1 signalling end of next vsync pulse
+;    jmp vsync              ; start a new frame (.wrap does this)
+
+.wrap
+
+% c-sdk {
+static inline void sample_program_init(PIO pio, uint sm, uint offset, uint pin, float div) {
+    // creates state machine configuration object c, sets
+    // to default configurations. See page 40 of pico_SDK
+    pio_sm_config c = sample_program_get_default_config(offset);
+
+    // Map this SM's IN pin group base to GPIO pin "pin"
+    sm_config_set_in_pins(&c, pin);
+
+    // Set the pin direction to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+        
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // set the state machine clock rate
+    sm_config_set_clkdiv(&c, div);
+
+    // bypass the input synchronizer for sync gpio input pin
+    //pio->input_sync_bypass = (1u<<pin);
+    
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
