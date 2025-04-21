@@ -1,0 +1,51 @@
+.program video_sampler
+    pull block          ; get value
+
+.wrap_target
+    mov x, osr          ; copy the value representing number of pixels to read on a scan line (640)
+                        ; (must be done this way since can't write > 31 to a reg in asm)
+frontporch:
+    nop [15]            ; pixel-clock width of front porch minus cycle to mov x (adjust if needed)
+
+active:                 ; read 640 pixels (note to set auto-push threshold)
+    in pins, 1          ; x = 640 (must be put in TX FIFO by c helper program
+    jmp x-- active
+
+backporch:
+    wait irq 0          ; wait for next rising edge of active-low Hsync pulse (next line)
+
+.wrap
+                        
+; (need separate sm for intensity bit, if used)
+
+
+% c-sdk {
+static inline void video_sampler_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = video_sampler_program_get_default_config(offset);
+
+    // Set the IN base pin to the provided `pin` parameter. This is the video pin
+    // and the next pin is the intensity pin
+    sm_config_set_in_pins(&c, pin);
+    // Set the pin directions to input at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 2, false);
+    // Connect these GPIOs to this PIO block
+    pio_gpio_init(pio, pin);
+    pio_gpio_init(pio, pin + 1);
+
+    // Shifting to left matches the customary MSB-first ordering of SPI.
+    sm_config_set_in_shift(
+        &c,
+        false, // Shift-to-right = false (i.e. shift to left)
+        true,  // Autopush enabled
+//        8      // Autopush threshold = 8   ; change this to 32 b/c we can
+        32      // Autopush threshold = 32
+    );
+
+    // We only receive, so disable the TX FIFO to make the RX FIFO deeper.
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    // Load our configuration, and start the program from the beginning
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
