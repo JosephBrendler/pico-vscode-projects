@@ -19,12 +19,12 @@ char dst[count_of(src)];
 #define PIO_IRQ0 PIO0_IRQ_0
 #define PIO_IRQ1 PIO0_IRQ_1
 
-#define START_DELAY 5   // seconds (give time to connect monitor)
+#define START_DELAY 5 // seconds (give time to connect monitor)
 
-static uint32_t MY_SYS_CLK_HZ  = 250 * MHZ;
+static uint32_t MY_SYS_CLK_HZ = 250 * MHZ;
 // this system freq (overclocked) is set by assignment at the top of
 //   main(){ //prior to stdio_init_all() } [botom of this file]
-//static float PIXEL_FREQ = (25 * MHZ);
+// static float PIXEL_FREQ = (25 * MHZ);
 // set pixel clock freq for 800 x Hsync freq x 3 for over-sampling
 // Hsync freq (1/38us = 21,315.789 Hz) x 3 x 800 = 63,157,893.6  Hz (63.1578936 MHZ)
 static float PIXEL_FREQ = (63.1578936 * MHZ);
@@ -32,10 +32,10 @@ static float PIXEL_FREQ = (63.1578936 * MHZ);
 static uint32_t activezone_scan_line_pixel_count = 640;
 static uint32_t activezone_scan_line_count = 400;
 
-static uint HSYNC_PIN = 15;        // GPIO 15; pin 35 (from inverter pin 2)
-static uint VSYNC_PIN = 5;         // GPIO 5;  pin 11 (from inverter pin 4)
-static uint VIDEO_PIN = 2;         // GPIO 2;  pin 38 (from trimpot1 wiper)
-static uint INTENSITY_PIN = 3;     // GPIO 3;  pin 15 (from trimpot2 wiper)
+static uint HSYNC_PIN = 15;    // GPIO 15; pin 35 (from inverter pin 2)
+static uint VSYNC_PIN = 5;     // GPIO 5;  pin 11 (from inverter pin 4)
+static uint VIDEO_PIN = 2;     // GPIO 2;  pin 38 (from trimpot1 wiper)
+static uint INTENSITY_PIN = 3; // GPIO 3;  pin 15 (from trimpot2 wiper)
 // GND(black) on pin 20; 3.3v (red) on pin 1 (for trim-pot v-divs and inverters)
 // for input gpio; set true for pullup | false for pulldown (one true if needed; else set both false)
 static bool PULL_UP = true;
@@ -60,24 +60,20 @@ volatile uint64_t vsync_interrupt_count = 0;
 volatile uint64_t timeBetweenVsyncInterrupts = 0;
 volatile uint64_t lastVsyncInterruptTime = 0;
 
-
 // run 4 state machines - 4 on on PIO0 (hsync, vsync, rx_video_data, rx_intensity_data)
 static PIO pio_0 = pio0;
-
-
-
-
 
 // currently just getting one (640 pixel) line of video scan, between HSYNC pulses
 // need to add 400 scan lines, between VSYNC pulses
 
-void pio_irq0_handler() {
+void pio_irq0_handler()
+{
     // Clear the interrupt flag
     if (pio_interrupt_get(pio_0, 0)) // returns TRUE if IRQ 0 is set (bit 8 in IRQ register)
     {
-        //printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
+        // printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
         pio_interrupt_clear(pio_0, 0);
-        //printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
+        // printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
         hsync_irq_flag = true;
     }
     else
@@ -86,13 +82,14 @@ void pio_irq0_handler() {
     }
 }
 
-void pio_irq1_handler() {
+void pio_irq1_handler()
+{
     // Clear the interrupt flag
     if (pio_interrupt_get(pio_0, 1)) // returns TRUE if IRQ 0 is set (bit 8 in IRQ register)
     {
-        //printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
+        // printf("Before Clear IRQ0 [INTR]: %x [IRQ]: %x || ", pio_0->intr, pio_0->irq);
         pio_interrupt_clear(pio_0, 1);
-        //printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
+        // printf("After Clear IRQ0 [INTR]: %x [IRQ]: %x \n", pio_0->intr, pio_0->irq);
         vsync_irq_flag = true;
     }
     else
@@ -101,17 +98,20 @@ void pio_irq1_handler() {
     }
 }
 
-void print_binary(uint32_t num) {
-    for (int i = 31; i >= 0; i--) {
+void print_binary(uint32_t num)
+{
+    for (int i = 31; i >= 0; i--)
+    {
         printf("%d", (num >> i) & 1);
     }
     printf("\n");
 }
 
-void setup() {
+void setup()
+{
     // disable irqs while dpomg setup
-    irq_set_enabled(PIO_IRQ0, false);   // hsync
-    irq_set_enabled(PIO_IRQ1, false);   // vsync
+    irq_set_enabled(PIO_IRQ0, false); // hsync
+    irq_set_enabled(PIO_IRQ1, false); // vsync
 
     printf("Starting program setup()\n");
 
@@ -174,13 +174,13 @@ void setup() {
             printf("  checked SM: %d, (already claimed), fixing...", i);
             pio_sm_unclaim(pio_0, i);
             printf(" (unclaimed)");
-            pio_sm_claim (pio_0, i);
+            pio_sm_claim(pio_0, i);
             printf(" (properly claimed)\n");
         }
         else
         {
             printf("  checked SM: %d, (unclaimed)", i);
-            pio_sm_claim (pio_0, i);
+            pio_sm_claim(pio_0, i);
             printf(" (properly claimed)\n");
         }
     }
@@ -199,8 +199,16 @@ void setup() {
     // set HSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(HSYNC_PIN, false);
     sprintf(updown, "not set");
-    if (PULL_DOWN) { gpio_pull_down(HSYNC_PIN); sprintf(updown, "down"); }
-    if (PULL_UP) { gpio_pull_up(HSYNC_PIN); sprintf(updown, "up"); }
+    if (PULL_DOWN)
+    {
+        gpio_pull_down(HSYNC_PIN);
+        sprintf(updown, "down");
+    }
+    if (PULL_UP)
+    {
+        gpio_pull_up(HSYNC_PIN);
+        sprintf(updown, "up");
+    }
     printf("  configured HSYNC_PIN: %d as input, with pullup/down: %s\n", HSYNC_PIN, updown);
 
     // initailize hsync_sm sync program with offset, hsync pin, and div
@@ -211,8 +219,16 @@ void setup() {
     // set VSYNC_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(VSYNC_PIN, false);
     sprintf(updown, "not set");
-    if (PULL_DOWN) { gpio_pull_down(VSYNC_PIN); sprintf(updown, "down"); }
-    if (PULL_UP) { gpio_pull_up(VSYNC_PIN); sprintf(updown, "up"); }
+    if (PULL_DOWN)
+    {
+        gpio_pull_down(VSYNC_PIN);
+        sprintf(updown, "down");
+    }
+    if (PULL_UP)
+    {
+        gpio_pull_up(VSYNC_PIN);
+        sprintf(updown, "up");
+    }
     printf("  configured VSYNC_PIN: %d as input, with pullup/down: %s\n", VSYNC_PIN, updown);
 
     // initailize vsync_sm sync program with offset, vsync pin, and div
@@ -223,8 +239,16 @@ void setup() {
     // set VIDEO_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(VIDEO_PIN, false);
     sprintf(updown, "not set");
-    if (PULL_DOWN) { gpio_pull_down(VIDEO_PIN); sprintf(updown, "down"); }
-    if (PULL_UP) { gpio_pull_up(VIDEO_PIN); sprintf(updown, "up"); }
+    if (PULL_DOWN)
+    {
+        gpio_pull_down(VIDEO_PIN);
+        sprintf(updown, "down");
+    }
+    if (PULL_UP)
+    {
+        gpio_pull_up(VIDEO_PIN);
+        sprintf(updown, "up");
+    }
     printf("  configured VIDEO_PIN: %d as input, with pullup/down: %s\n", VIDEO_PIN, updown);
 
     // initailize video_sm sample program with offset, video pin, and div
@@ -235,8 +259,16 @@ void setup() {
     // set INTENSITY_PIN (assigned in the top block) as gpio input; configure for pull up/down as applicable
     gpio_set_dir(INTENSITY_PIN, false);
     sprintf(updown, "not set");
-    if (PULL_DOWN) { gpio_pull_down(INTENSITY_PIN); sprintf(updown, "down"); }
-    if (PULL_UP) { gpio_pull_up(INTENSITY_PIN); sprintf(updown, "up"); }
+    if (PULL_DOWN)
+    {
+        gpio_pull_down(INTENSITY_PIN);
+        sprintf(updown, "down");
+    }
+    if (PULL_UP)
+    {
+        gpio_pull_up(INTENSITY_PIN);
+        sprintf(updown, "up");
+    }
     printf("  configured INTENSITY_PIN: %d as input, with pullup/down: %s\n", INTENSITY_PIN, updown);
 
     // initailize intensity_sm sample program with offset, intensity pin, and div
@@ -248,12 +280,12 @@ void setup() {
     // (this is only done once; sm's read once prior to wrap_target)
     pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_pixel_count);
     pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_count);
-    printf("  filled video_sm tx_fifo with frame sizes (%d x %d)\n", 
-        activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);
+    printf("  filled video_sm tx_fifo with frame sizes (%d x %d)\n",
+           activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);
     pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_pixel_count);
     pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_count);
-    printf("  filled intensity_sm tx_fifo with frame sizes (%d x %d)\n", 
-        activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);        
+    printf("  filled intensity_sm tx_fifo with frame sizes (%d x %d)\n",
+           activezone_scan_line_pixel_count, activezone_scan_line_pixel_count);
 
     // Configure HSYNC interrupt (source, handler, then enable)
     pio_set_irq0_source_enabled(pio_0, pis_interrupt0, true);
@@ -272,50 +304,55 @@ void setup() {
     printf("  irq_set_enabled true for PIO-NVIC IRQ %d\n", PIO_IRQ1);
 }
 
-void loop() {
+void loop()
+{
     printf("Running microcontroller loop() function\n");
     uint count = 0;
-    while (count < 10) {
+    while (count < 10)
+    {
         if (hsync_irq_flag)
         {
             // disable irqs while handling one
-//            irq_set_enabled(PIO_IRQ0, false);      // don't use NVIC, just poll INTR in loop
+            //            irq_set_enabled(PIO_IRQ0, false);      // don't use NVIC, just poll INTR in loop
             currentTime = time_us_64();
             timeBetweenHsyncInterrupts = currentTime - lastHsyncInterruptTime;
             lastHsyncInterruptTime = currentTime;
             hsync_interrupt_count++;
-            hsync_irq_flag = false;       // don't need this if not using NVIC IRQ
-            // re-enable irqs after handling one    
-//            irq_set_enabled(PIO_IRQ0, true);           // donnt use NVIC - just poll INTR in loop
+            hsync_irq_flag = false; // don't need this if not using NVIC IRQ
+                                    // re-enable irqs after handling one
+            //            irq_set_enabled(PIO_IRQ0, true);           // donnt use NVIC - just poll INTR in loop
+
         }
         if (vsync_irq_flag)
         {
             // disable irqs while handling one
-//            irq_set_enabled(PIO_IRQ1, false);      // don't use NVIC, just poll INTR in loop
+            //            irq_set_enabled(PIO_IRQ1, false);      // don't use NVIC, just poll INTR in loop
             currentTime = time_us_64();
             timeBetweenVsyncInterrupts = currentTime - lastVsyncInterruptTime;
             lastVsyncInterruptTime = currentTime;
             vsync_interrupt_count++;
-            vsync_irq_flag = false;       // don't need this if not using NVIC IRQ
-            // re-enable irqs after handling one    
-//            irq_set_enabled(PIO_IRQ1, true);           // donnt use NVIC - just poll INTR in loop
+            vsync_irq_flag = false; // don't need this if not using NVIC IRQ
+            // re-enable irqs after handling one
+            //            irq_set_enabled(PIO_IRQ1, true);           // donnt use NVIC - just poll INTR in loop
         }
-        if ( time_us_64() % 1000000 == 0 ) {
-            uint seconds = (uint)( time_us_64() / MHZ );
+        if (time_us_64() % 1000000 == 0)
+        {
+            uint seconds = (uint)(time_us_64() / MHZ);
             printf("Runtime: (%ds)\n", seconds - START_DELAY);
             printf("    H_IRQs: (%llu), Delta_t btw H_IRQs: (%llu us)\n",
-                hsync_interrupt_count, timeBetweenHsyncInterrupts);
+                   hsync_interrupt_count, timeBetweenHsyncInterrupts);
             printf("    V_IRQs: (%llu), Delta_t btw V_IRQs: (%llu us)\n",
-                vsync_interrupt_count, timeBetweenVsyncInterrupts);
+                   vsync_interrupt_count, timeBetweenVsyncInterrupts);
             count++;
+            if (!pio_sm_is_rx_fifo_empty(pio_0, video_sm))
+            {
+                uint32_t data = pio_sm_get_blocking(pio_0, video_sm);
+                printf(" In hex: %x\n", data);
+                //   print_binary(data);
+            }
         }
-        
-//        if (!pio_sm_is_rx_fifo_empty(pio_0, video_sm)) {
-//            uint32_t data = pio_sm_get_blocking(pio_0, video_sm);
-//            printf(" Received hex: %x   binary: ", data);
-//            print_binary(data);
-//        }
-//        sleep_ms(1000);
+
+        //        sleep_ms(1000);
     }
 }
 
@@ -324,9 +361,9 @@ int main()
 
     // setup overclocking
     set_sys_clock_hz(MY_SYS_CLK_HZ, true);
-    
+
     stdio_init_all();
-    sleep_ms( START_DELAY * 1000 );     // give me time to turn on minicom monitor
+    sleep_ms(START_DELAY * 1000); // give me time to turn on minicom monitor
 
     printf("Main() about to run setup()\n");
     setup();
