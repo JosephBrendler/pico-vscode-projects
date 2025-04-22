@@ -29,9 +29,10 @@ static uint32_t MY_SYS_CLK_HZ = 250 * MHZ;
 
 // set pixel clock freq for 800 x Hsync freq x 3 for over-sampling
 // Hsync freq (1/38us = 21,315.789 Hz) x 3 x 800 = 63,157,893.6  Hz (63.1578936 MHZ)
-const static uint OVERSAMPLE = 3;            // oversampling multiplier
-const static uint PIXELS_PER_SCANLINE = 800; // includes front and back porch
-static uint32_t PIXEL_FREQ = (uint32_t)(21.315789 * MHZ * PIXELS_PER_SCANLINE * OVERSAMPLE);
+const static uint OVERSAMPLE = 3;               // oversampling multiplier
+const static uint PIXELS_PER_SCANLINE = 800;    // includes front and back porch
+static uint32_t PIXEL_FREQ = 63157894;
+static float px_freq_divider = 1;               // calculate and display during setup()
 
 const static uint activezone_scan_line_pixel_count = 640;
 const static uint activezone_scan_line_count = 400;
@@ -123,7 +124,7 @@ void print_binary(uint32_t num)
     printf("\n");
 }
 
-void setup_my_gpio_pin(uint myPIN)
+void setup_my_gpio_pin(uint myPIN, char name[])
 {
     // set myPIN (assigned in the top block) as gpio input
     // configure for pull up/down as applicable
@@ -139,7 +140,7 @@ void setup_my_gpio_pin(uint myPIN)
         gpio_pull_up(myPIN);
         sprintf(updown, "up");
     }
-    printf("  gpio%d: configured as input, with pullup/down: %s\n", myPIN, updown);
+    printf("  gpio%d: (%s) configured as input, with pullup/down: %s\n", myPIN, name, updown);
 }
 
 void setup()
@@ -184,32 +185,20 @@ void setup()
         }
     }
 
-    // initailize hsync_sm and vsync_sm sync program with offset, pin, and div
-    setup_my_gpio_pin(HSYNC_PIN);
-    setup_my_gpio_pin(VSYNC_PIN);
-    sync_program_init(pio_0, hsync_sm, offset0, HSYNC_PIN, div);
-    printf("  pio_0: initialized sync_program for hsync_sm, offset0: %x hex, HSYNC_PIN: %d, and divider: %.8f\n", offset0, HSYNC_PIN, div);
-    sync_program_init(pio_0, vsync_sm, offset0, VSYNC_PIN, div);
-    printf("  pio_0: initialized sync_program for vsync_sm, offset0: %x hex, VSYNC_PIN: %d, and divider: %.8f\n", offset0, VSYNC_PIN, div);
-
-    // initailize video_sm and intensity_sm sample program with offset, pin, and div
-    setup_my_gpio_pin(VIDEO_PIN);
-    setup_my_gpio_pin(INTENSITY_PIN);
-    sample_program_init(pio_0, video_sm, offset1, VIDEO_PIN, div);
-    printf("  pio_0: initialized sample_program for video_sm, offset1: %x hex, VIDEO_PIN: %d, and divider: %.8f\n", offset1, VIDEO_PIN, div);
-    sample_program_init(pio_0, intensity_sm, offset1, INTENSITY_PIN, div);
-    printf("  pio_0: initialized sample_program for intensity_sm, offset1: %x hex, INTENSITY_PIN: %d, and divider: %.8f\n", offset1, INTENSITY_PIN, div);
-
-    // Write to the TX FIFO the frame sizes for both video_sm & intensity_sm
-    // (this is only done once; sm's read once prior to wrap_target)
-    pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_pixel_count);
-    pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_count);
-    printf("  video_sm: filled tx_fifo with frame sizes (%d x %d)\n",
-           activezone_scan_line_pixel_count, activezone_scan_line_count);
-    pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_pixel_count);
-    pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_count);
-    printf("  intensity_sm: filled tx_fifo with frame sizes (%d x %d)\n",
-           activezone_scan_line_pixel_count, activezone_scan_line_count);
+    // initailize hsync_sm and vsync_sm sync program with offset, pin, and px_freq_divider
+    setup_my_gpio_pin(HSYNC_PIN, "HSYNC");
+    setup_my_gpio_pin(VSYNC_PIN, "VSYNC");
+    // initailize video_sm and intensity_sm sample program with offset, pin, and px_freq_divider
+    setup_my_gpio_pin(VIDEO_PIN, "VIDEO");
+    setup_my_gpio_pin(INTENSITY_PIN, "INTENSITY");
+    sync_program_init(pio_0, hsync_sm, offset0, HSYNC_PIN, px_freq_divider);
+    printf("  pio_0: initialized sync_program for hsync_sm, offset0: %x hex, HSYNC_PIN: %d, and divider: %.8f\n", offset0, HSYNC_PIN, px_freq_divider);
+    sync_program_init(pio_0, vsync_sm, offset0, VSYNC_PIN, px_freq_divider);
+    printf("  pio_0: initialized sync_program for vsync_sm, offset0: %x hex, VSYNC_PIN: %d, and divider: %.8f\n", offset0, VSYNC_PIN, px_freq_divider);
+    sample_program_init(pio_0, video_sm, offset1, VIDEO_PIN, px_freq_divider);
+    printf("  pio_0: initialized sample_program for video_sm, offset1: %x hex, VIDEO_PIN: %d, and divider: %.8f\n", offset1, VIDEO_PIN, px_freq_divider);
+    sample_program_init(pio_0, intensity_sm, offset1, INTENSITY_PIN, px_freq_divider);
+    printf("  pio_0: initialized sample_program for intensity_sm, offset1: %x hex, INTENSITY_PIN: %d, and divider: %.8f\n", offset1, INTENSITY_PIN, px_freq_divider);
 
     // set up and display system frequencies
     printf("  System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
@@ -218,10 +207,56 @@ void setup()
 
     // calculate divider needed to get PIXEL_FREQ
     uint32_t sys_clock = clock_get_hz(clk_sys);
-    float div = {sys_clock / (float)PIXEL_FREQ};
-    //float div = sys_clock / PIXEL_FREQ;
-    printf("  calculated divider to generate PIXEL_FREQ: %.8f\n", div);
+    px_freq_divider = (float)sys_clock / (float)PIXEL_FREQ;
+    printf("  calculated divider to generate PIXEL_FREQ: %.8f\n", px_freq_divider);
 
+
+    // clear the tx fifo if it isn't empty
+    pio_sm_clear_fifos(pio_0, video_sm);
+    pio_sm_clear_fifos(pio_0, intensity_sm);
+    printf("  video_sm tx_fifo: checking ...");
+    if (pio_sm_is_tx_fifo_full(pio_0, video_sm)) {
+        printf(" (full)");
+        pio_sm_drain_tx_fifo(pio_0, video_sm);
+        printf(" (now drained)\n");
+    }
+    else {
+        uint level = pio_sm_get_tx_fifo_level(pio_0, video_sm);
+        printf(" (level: %d)", level);
+        pio_sm_drain_tx_fifo(pio_0, video_sm);
+        printf(" (now drained)\n");   
+    }
+    printf("  intensity_sm tx_fifo: checking ...");
+    if (pio_sm_is_tx_fifo_full(pio_0, intensity_sm)) {
+        printf(" (full)");
+        pio_sm_drain_tx_fifo(pio_0, intensity_sm);
+        printf(" (now drained)\n");
+    }
+    else {
+        uint level = pio_sm_get_tx_fifo_level(pio_0, intensity_sm);
+        printf(" (level: %d)", level);
+        pio_sm_drain_tx_fifo(pio_0, intensity_sm);
+        printf(" (now drained)\n");   
+    }
+
+    printf("  video_sm: tx fifo level now: %d\n", pio_sm_get_tx_fifo_level(pio_0, video_sm));
+    printf("  intensity_sm: tx fifo level now: %d\n", pio_sm_get_tx_fifo_level(pio_0, intensity_sm));
+    
+    // Write to the TX FIFO the frame sizes for both video_sm & intensity_sm
+    // (this is only done once; sm's read once prior to wrap_target)    
+    //pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_pixel_count);
+    //pio_sm_put_blocking(pio_0, video_sm, activezone_scan_line_count);
+    pio_sm_put(pio_0, video_sm, activezone_scan_line_pixel_count);
+    pio_sm_put(pio_0, video_sm, activezone_scan_line_count);
+    printf("  video_sm: filled tx_fifo with frame sizes (%d x %d)\n",
+           activezone_scan_line_pixel_count, activezone_scan_line_count);
+    //pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_pixel_count);
+    //pio_sm_put_blocking(pio_0, intensity_sm, activezone_scan_line_count);
+    pio_sm_put(pio_0, intensity_sm, activezone_scan_line_pixel_count);
+    pio_sm_put(pio_0, intensity_sm, activezone_scan_line_count);
+    printf("  intensity_sm: filled tx_fifo with frame sizes (%d x %d)\n",
+           activezone_scan_line_pixel_count, activezone_scan_line_count);
+           
     //-----[ set up DMA ]----------------------------------
     // 32 bit transfers. Both read and write address increment after each
     // transfer (each pointing to a location in src or dst respectively).
@@ -229,15 +264,15 @@ void setup()
 
     // Get a free channel, panic() if there are none
     dma_chan = dma_claim_unused_channel(true);
-    printf("  dma channel %d:claimed\n", dma_chan);
+    printf("  dma channel %d: claimed\n", dma_chan);
 
     dma_channel_config dma_config = dma_channel_get_default_config(dma_chan);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
     channel_config_set_read_increment(&dma_config, true);
-    channel_config_set_write_increment(&dma_config, true);
+    channel_config_set_write_increment(&dma_config, false);
     uint dma_dreq = pio_get_dreq(pio_0, video_sm, false);
     channel_config_set_dreq(&dma_config, dma_dreq);
-    printf("  dma channel %d: configured with DMA_SIZE_32: %d, and r, w incr: true, and dreq: %d\n",
+    printf("  dma channel %d: configured with DMA_SIZE_32: %d, and r_incr: true, w_incr: false, and dreq: %d\n",
            dma_chan, DMA_SIZE_32, dma_dreq);
 
     // set up dma to trigger upon completion
