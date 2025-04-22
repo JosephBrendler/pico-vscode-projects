@@ -50,6 +50,14 @@ static inline void sample_program_init(PIO pio, uint sm, uint offset, uint pin, 
     // set the state machine clock rate
     sm_config_set_clkdiv(&c, div);
 
+    // set the state machine input shift to left and auto push at threshold 32 (not 8)
+    // syntax: void sm_config_set_in_shift(pio_sm_config *c, 
+    //    bool shift_right, bool autopush, uint push_threshold)
+    sm_config_set_in_shift(&c, false, true, 32);
+
+    // Join receive fifo
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
     // bypass the input synchronizer for sync gpio input pin
     //pio->input_sync_bypass = (1u<<pin);
     
